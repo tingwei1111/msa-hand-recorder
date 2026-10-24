@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "MSA 手牌記錄器",
+  "version": "0.3.0",
+  "description": "在本機整合 MSA 自己的手牌、雙方公開出牌與 Battle Log，依回合檢視並匯出賽後分析資料。",
+  "permissions": [
+    "storage"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "MSA 手牌記錄器",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://mobilesuitarena.com/*"
+      ],
+      "js": [
+        "recorder-core.js",
+        "dom-reader.js",
+        "capture-coordinator.js",
+        "content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
+}

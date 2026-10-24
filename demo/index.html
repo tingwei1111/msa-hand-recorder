@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MSA 手牌記錄器 · 本機驗證</title>
+<style>
+body{margin:0;background:#101c22;color:#e6eeee;font:15px/1.7 system-ui,sans-serif}main{max-width:1000px;margin:36px auto;padding:0 24px}h1{font-size:28px;letter-spacing:.02em}p{color:#a8bdc3}button{border:1px solid #526e75;background:#203840;color:#eef8f4;padding:9px 14px;border-radius:8px;cursor:pointer;margin:4px}.panel{border:1px solid #38525b;border-radius:14px;padding:20px;margin-top:18px;background:#14262e}.cards{display:flex;gap:12px;min-height:140px;margin:12px 0}.slot{position:relative}.card-front img,.card-back img{width:94px;height:130px}.card-back{position:absolute;transform:rotateY(180deg);backface-visibility:hidden}.card-front{backface-visibility:hidden}pre{white-space:pre-wrap;font-size:13px;color:#9ce4c7}label{font-weight:700}.pass{color:#88e5bf}.fail{color:#ff9a92}small{color:#9bb0b8}.player{display:flex;justify-content:space-between}#results{padding-left:24px}
+</style></head><body><main>
+<small>LOCAL VALIDATION · 不會連線到 MSA，也不是對局錄製結果</small>
+<h1>手牌與公開 Log：驗證面板</h1>
+<p>以合成資料模擬 MSA 容器、卡片正反面與公開日誌結構，驗證手牌保存、回合分段、重複出牌及關閉後重新匯入。日誌擷取時間不代表事件發生時間。</p>
+<div><button id="run-tests">執行瀏覽器驗證</button><button id="draw">模擬抽牌</button><button id="switch">切換回合</button><button id="empty">清空手牌</button><button id="reset">重設測試場景</button><button id="open-log" class="_logButton_fixture">開啟模擬 Log</button><button id="close-log">關閉模擬 Log</button></div>
+<section class="panel" id="board">
+<div class="_playerInfoContainer_fixture player"><span class="_playerInfoBadge_fixture">測試對手</span><span class="_playerInfoPhase_fixture"></span></div>
+<div class="_handContainer_fixture cards" id="opponent-hand"></div>
+<div class="_gridContainer_fixture top"><div class="_battleAreaBox_fixture" style="z-index:9"></div></div>
+<div class="_gridContainer_fixture"><div class="_battleAreaBox_fixture" style="z-index:10"></div><button>Lv. 5 • 4</button></div>
+<div class="_playerInfoContainer_fixture player"><span class="_playerInfoBadge_fixture">測試玩家</span><span class="_playerInfoPhase_fixture">MAIN</span></div>
+<div class="_handContainer_fixture cards" id="own-hand"></div>
+</section>
+<section class="panel"><label>讀取結果</label><pre id="reading"></pre><label>驗證紀錄</label><ol id="results"></ol></section>
+</main><script src="../extension/recorder-core.js"></script><script src="../extension/battle-log-core.js"></script><script src="../extension/dom-reader.js"></script><script src="../extension/capture-coordinator.js"></script><script src="../tests/fixtures/synthetic-match.js"></script><script src="fixture.js"></script><script src="../extension/content.js"></script></body></html>

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MSA 手牌記錄</title>
+    <link rel="stylesheet" href="popup.css">
+    <script src="recorder-core.js" defer></script>
+    <script src="battle-log-core.js" defer></script>
+    <script src="popup.js" defer></script>
+  </head>
+  <body>
+    <header class="masthead">
+      <div>
+        <p class="eyebrow">MOBILE SUIT ARENA</p>
+        <h1>我的對局記錄</h1>
+        <p class="subtitle">自己的手牌 × 雙方公開事件</p>
+      </div>
+      <span class="local-mark">僅存本機</span>
+    </header>
+
+    <main>
+      <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+
+      <section class="panel recording-panel" aria-label="記錄狀態">
+        <div class="row">
+          <div class="status-heading">
+            <span id="status-dot" class="status-dot" aria-hidden="true"></span>
+            <strong id="recording-label">讀取設定中…</strong>
+          </div>
+          <label class="switch-label">
+            <span id="toggle-label">啟用記錄</span>
+            <input id="recording-enabled" type="checkbox" role="switch" aria-label="啟用自動記錄">
+            <span class="switch-track" aria-hidden="true"></span>
+          </label>
+        </div>
+        <p id="status-message" class="secondary status-message">正在讀取本機資料。</p>
+        <p id="status-time" class="micro"></p>
+        <details class="settings">
+          <summary>玩家與手牌位置</summary>
+          <form id="settings-form">
+            <label for="player-name">我的玩家名稱 <span class="optional">選填</span></label>
+            <input id="player-name" type="text" maxlength="80" placeholder="填寫後鎖定此玩家" autocomplete="off" spellcheck="false">
+            <label for="hand-side">我的手牌位置</label>
+            <select id="hand-side">
+              <option value="auto">自動：下方玩家手牌</option>
+              <option value="bottom">下方：我自己的手牌</option>
+              <option value="top">上方：我自己的手牌</option>
+            </select>
+            <p id="side-help" class="micro">自動僅辨識下方本人手牌；旁觀或舊對局只能收錄公開 Log。</p>
+            <label><input id="auto-collect-log" type="checkbox" checked> 自動收錄 Battle Log</label>
+            <p class="micro">開局與結束時，在閒置時短暫開啟日誌讀取，再恢復原狀。關閉此設定後，按「更新」或「匯出」仍會嘗試讀取日誌。</p>
+            <button id="save-settings" class="button small" type="submit">儲存設定</button>
+          </form>
+        </details>
+      </section>
+
+      <section class="panel" aria-labelledby="session-heading">
+        <div class="row section-heading">
+          <h2 id="session-heading">本機對局</h2>
+          <button id="refresh" class="text-button" type="button" aria-label="重新讀取本機記錄">重新整理</button>
+        </div>
+        <label class="visually-hidden" for="session-select">選擇對局記錄</label>
+        <select id="session-select" disabled>
+          <option>載入中…</option>
+        </select>
+
+        <div id="empty-state" class="empty-state" hidden>
+          <strong>還沒有對局記錄</strong>
+          <p>在開局前啟用並重新整理 MSA，記錄自己的手牌；顯示 Battle Log（L）可收錄雙方公開事件。</p>
+          <p class="micro">已經打完的對局無法補回過去的手牌。</p>
+        </div>
+
+        <div id="session-content" hidden>
+          <p id="session-meta" class="micro session-meta"></p>
+          <dl class="stats">
+            <div><dt>快照</dt><dd id="snapshot-count">—</dd></div>
+            <div><dt>回合摘要</dt><dd id="turn-count">—</dd></div>
+            <div><dt>完整快照</dt><dd id="complete-count">—</dd></div>
+          </dl>
+          <div class="log-summary">
+            <div class="row">
+              <h3>公開 Battle Log</h3>
+              <span id="log-coverage" class="badge unavailable">尚未收錄</span>
+            </div>
+            <p id="log-counts" class="secondary">公開事件 0 筆 · 出牌紀錄 0 筆</p>
+            <p id="log-note" class="micro">匯出前會嘗試更新 Log；請保持對局分頁開啟。</p>
+            <button id="sync-log" class="button small" type="button">更新這場 Battle Log</button>
+            <button id="open-review" class="button review-button" type="button">按回合檢視手牌與出牌 →</button>
+          </div>
+          <div class="row hand-heading">
+            <h3>最近一次手牌</h3>
+            <span id="quality-badge" class="badge">尚無快照</span>
+          </div>
+          <p id="snapshot-meta" class="secondary"></p>
+          <p id="turn-source" class="micro"></p>
+          <p id="hand-counts" class="hand-counts"></p>
+          <ul id="hand-list" class="hand-list" aria-label="已辨識的手牌"></ul>
+          <p id="hand-empty" class="secondary"></p>
+          <p id="snapshot-reason" class="quality-note"></p>
+          <p id="resource-status" class="micro"></p>
+          <p id="snapshot-time" class="micro"></p>
+
+          <div class="export-actions">
+            <button id="export-json" class="button primary" type="button">本段 JSON</button>
+            <button id="export-csv" class="button" type="button">本段手牌 CSV</button>
+          </div>
+          <div class="row bottom-actions">
+            <span class="micro">合併段落與其他格式請開啟回顧頁。</span>
+            <button id="delete-session" class="text-button danger" type="button">刪除此筆</button>
+          </div>
+        </div>
+      </section>
+
+      <footer>
+        <p>v0.3 · 建議用回顧頁的 HTML 匯出：包含全部手牌快照與公開 Log。更新時請保留對局分頁，確認涵蓋狀態。</p>
+        <p>只讀頁面上可見的自己的手牌。初次使用請先核對張數。</p>
+      </footer>
+    </main>
+  </body>
+</html>

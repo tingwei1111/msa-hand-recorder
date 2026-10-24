@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MSA 本機對局回顧</title>
+    <link rel="stylesheet" href="review.css">
+    <script src="recorder-core.js" defer></script>
+    <script src="battle-log-core.js" defer></script>
+    <script src="review.js" defer></script>
+  </head>
+  <body>
+    <header class="page-header">
+      <div class="header-inner">
+        <div>
+          <p class="eyebrow">MSA · LOCAL MATCH REVIEW</p>
+          <h1>把一場對局，按回合攤開</h1>
+          <p class="header-description">自己的手牌觀察，與雙方已公開的出牌及戰鬥紀錄。</p>
+        </div>
+        <span class="local-mark">本機檢視 · 無資料上傳</span>
+      </div>
+    </header>
+
+    <main class="page-shell">
+      <div id="review-notice" class="notice" role="status" aria-live="polite" hidden></div>
+      <section class="session-bar" aria-label="對局選擇與匯出">
+        <div class="session-picker">
+          <label for="review-session">本機對局／記錄段落</label>
+          <select id="review-session" disabled><option>載入中…</option></select>
+        </div>
+        <div class="export-toolbar">
+          <label class="visually-hidden" for="export-format">匯出格式</label>
+          <select id="export-format">
+            <option value="html">獨立 HTML 報告</option>
+            <option value="markdown">回合報告 Markdown</option>
+            <option value="json">全部原始資料 JSON</option>
+            <option value="hands-csv">手牌 CSV</option>
+            <option value="events-csv">公開事件 CSV</option>
+            <option value="combined-csv">手牌＋事件整合 CSV</option>
+          </select>
+          <button id="download-review" class="button primary" type="button" disabled>下載</button>
+          <button id="refresh-review" class="button subtle" type="button">重新整理</button>
+        </div>
+      </section>
+      <div class="merge-control">
+        <label><input id="combine-segments" type="checkbox" checked> 合併同對局的相容記錄段落</label>
+        <span id="merge-status" class="muted">正在檢查記錄段落。</span>
+      </div>
+
+      <section id="review-empty" class="empty-state" hidden>
+        <h2>還沒有可以檢視的記錄</h2>
+        <p>請在開局前啟用擴充功能，讓自己的手牌開始被記錄；賽後開啟 Battle Log（L），再確認公開紀錄已收錄。</p>
+        <p>舊對局的公開 Log 可以提供已公開事件，不能補回當時沒有記錄到的手牌。</p>
+      </section>
+
+      <div id="review-content" hidden>
+        <section class="overview" aria-labelledby="match-heading">
+          <div class="overview-heading">
+            <div><p class="eyebrow light">MATCH RECORD</p><h2 id="match-heading">對局回顧</h2><p id="match-meta" class="muted"></p></div>
+            <span id="coverage-badge" class="badge unavailable">尚未收錄 Log</span>
+          </div>
+          <dl class="summary-stats">
+            <div><dt>自己的手牌快照</dt><dd id="review-snapshot-count">0</dd></div>
+            <div><dt>公開事件</dt><dd id="review-event-count">0</dd></div>
+            <div><dt>公開出牌</dt><dd id="review-play-count">0</dd></div>
+            <div><dt>可檢視回合群組</dt><dd id="review-turn-count">0</dd></div>
+          </dl>
+          <p id="coverage-detail" class="coverage-detail"></p>
+          <p id="export-refresh-status" class="export-refresh-status" role="status" aria-live="polite">下載前會先要求刷新對應 MSA 分頁，再重讀本機資料。</p>
+          <ul id="review-warnings" class="warning-list" hidden></ul>
+          <p id="capture-reminder" class="capture-reminder">Log 關閉時可能不在 DOM 中；無法保證關閉期間已讀到事件。至少在賽後開啟 L，等待這裡更新並核對開局／結束標記。</p>
+        </section>
+
+        <div class="review-layout">
+          <aside class="turn-sidebar" aria-label="回合導覽">
+            <div class="sidebar-heading"><h2>回合索引</h2><span id="turn-filter-count" class="muted"></span></div>
+            <label class="visually-hidden" for="turn-search">搜尋回合、玩家、卡名或卡號</label>
+            <input id="turn-search" type="search" placeholder="回合、玩家、卡名或卡號" autocomplete="off">
+            <nav id="turn-navigation" aria-label="選擇回合"></nav>
+            <p id="turn-search-empty" class="muted" hidden>沒有符合的回合。</p>
+            <p class="sidebar-note">「觀察」序號與絕對回合分開呈現，避免把未校準手牌錯接到某一回合。</p>
+          </aside>
+          <section class="turn-detail" aria-label="選取回合內容">
+            <div id="turn-content"></div>
+            <div id="turn-unavailable" class="empty-state compact" hidden>
+              <h2 id="turn-empty-heading">尚無可整理的回合</h2>
+              <p id="turn-empty-description">原始資料仍可下載 JSON；請在 MSA 顯示手牌或開啟 Battle Log 後再重新整理。</p>
+            </div>
+          </section>
+        </div>
+
+        <details class="raw-log-panel">
+          <summary>檢視已收錄的原始公開 Log 資料</summary>
+          <p class="muted">以下只呈現工具已收錄的內容，不代表伺服器端整場紀錄。</p>
+          <pre id="raw-log-text"></pre>
+        </details>
+      </div>
+      <footer class="page-footer">
+        <p>每筆已儲存手牌快照都逐筆呈現。最早／最晚不保證正好是回合開始／結束；卡號數量差不代表已確認的抽牌、出牌或棄牌。</p>
+        <p>獨立 HTML 同時嵌入完整原始 JSON，保留全部快照、公開 Log 與原有欄位。沒有觀察到的歷史手牌仍是未知，不會補造。</p>
+        <p>合併檢視只在記憶體中整理，不會覆寫本機原段落；JSON 匯出目前檢視範圍並保留來源段落。此工具未讀取對手隱藏手牌。</p>
+      </footer>
+    </main>
+  </body>
+</html>
