@@ -7,13 +7,13 @@
 
 這是為 GUNDAM CARD GAME（GCG）玩家製作的獨立社群工具，並非 Mobile Suit Arena 或 GUNDAM CARD GAME 的官方產品。
 
-**[下載 v0.9.0](https://github.com/tingwei1111/msa-hand-recorder/releases/tag/v0.9.0)** · [完整繁中教學](docs/使用教學.md) · [English guide](docs/user-guide.en.md) · [問題回報](https://github.com/tingwei1111/msa-hand-recorder/issues) · [分享文案](docs/sharing.md)
+**[下載 v0.10.0](https://github.com/tingwei1111/msa-hand-recorder/releases/tag/v0.10.0)** · [完整繁中教學](docs/使用教學.md) · [English guide](docs/user-guide.en.md) · [問題回報](https://github.com/tingwei1111/msa-hand-recorder/issues) · [分享文案](docs/sharing.md)
 
 **[第一次使用：5 分鐘開始](#5-分鐘開始)** · [完整繁中教學](docs/使用教學.md) · [English guide](docs/user-guide.en.md) · [參與開發](CONTRIBUTING.md)
 
 ## 5 分鐘開始
 
-1. 到 [v0.9.0 Releases](https://github.com/tingwei1111/msa-hand-recorder/releases/tag/v0.9.0) 的 **Assets** 下載 `msa-hand-recorder-v0.9.0.zip`，解壓後保留資料夾。
+1. 到 [v0.10.0 Releases](https://github.com/tingwei1111/msa-hand-recorder/releases/tag/v0.10.0) 的 **Assets** 下載 `msa-hand-recorder-v0.10.0.zip`，解壓後保留資料夾。
 2. 開啟 `chrome://extensions`，開啟「開發人員模式」，按「載入未封裝項目」，選擇裡面的 **`extension`** 資料夾。
 3. 在下一場開局前重新整理 MSA 分頁，開啟插件按「記錄自檢」。停在大廳時顯示「大廳待命中」。
 4. 進入測試對局，核對自己的手牌卡號、張數與已存快照是否增加；要查看牌組卡列，可先在「資料與牌組」保存並綁定本場牌組。
@@ -25,14 +25,20 @@
 
 | 項目 | 狀態 |
 | --- | --- |
-| 版本 | **v0.9.0 Prerelease／公開測試版**；版本下載頁的 Assets 為已發佈安裝包。 |
+| 版本 | **v0.10.0 Prerelease／公開測試版**；版本下載頁的 Assets 為已發佈安裝包。 |
 | 文件 | 繁體中文與英文首頁、完整教學、卡片資料來源及開發說明。 |
-| 擴充功能介面 | **目前仍是繁體中文**。英文教學附實際中文按鈕對照，尚無介面語言切換。 |
-| 卡片預覽 | 小窗固定查詢官方繁中卡文；圖片可能是日文，文字與圖片語言分別標示。英文文件不會改變查卡語言。 |
+| 擴充功能介面 | **繁體中文、簡體中文、English**。在小視窗、回顧或管理頁頂端選擇；小窗在「顯示設定」切換，選擇會記住並同步。 |
+| 卡片預覽 | 英文介面查詢官方英文卡文；兩種中文介面查詢官方繁中卡文。卡文與圖片語言分別標示，圖片可能不同。 |
 | 使用環境 | 以桌面版 Google Chrome 為主要目標；其他瀏覽器、手機及平板未驗證。 |
-| 驗證範圍 | v0.9.0 通過 375 項 JavaScript／Wasm 測試與 30 項合成瀏覽器錄製回歸；Rust／Wasm 核心沿用 v0.8。**尚未完成真人整場對戰的端到端驗證。** |
+| 驗證範圍 | v0.10.0 通過 386 項 JavaScript／Wasm 測試與 30 項合成瀏覽器錄製回歸；Rust／Wasm 核心沿用 v0.8。**尚未完成真人整場對戰的端到端驗證。** |
 
 第一次使用請先用測試對局人工核對卡號、張數、回合與公開 Log。自檢通過或 Log 已見起尾，都不代表手牌全程完整。
+
+## 切換介面語言
+
+在外掛上方的「介面語言 / Interface language」選擇 **繁體中文、简体中文或 English**；對戰小窗則展開「顯示設定」。首次使用依瀏覽器語言選擇，之後以你保存的選擇為準，已開啟頁面會即時同步，不必重載對局。切換不會翻譯玩家名稱、筆記、卡名或 Battle Log 原文，也不會改寫既有紀錄。
+
+[v0.10 三語設定與驗證說明](docs/v0.10.md) · [英文介面預覽](docs/images/popup-v0.10-en.png)
 
 ## 為什麼使用這個工具
 
@@ -68,14 +74,14 @@
 
 **一般使用者不必安裝 Rust、Node.js、Python 或本機伺服器。**安裝包已附本機 Wasm 核心。目前提供手動載入的 ZIP，沒有 Chrome Web Store 安裝或自動更新。
 
-1. 到 [v0.9.0 下載頁](https://github.com/tingwei1111/msa-hand-recorder/releases/tag/v0.9.0)，展開 **Assets**，下載 `msa-hand-recorder-v0.9.0.zip`。
+1. 到 [v0.10.0 下載頁](https://github.com/tingwei1111/msa-hand-recorder/releases/tag/v0.10.0)，展開 **Assets**，下載 `msa-hand-recorder-v0.10.0.zip`。
 2. 解壓到固定資料夾，找到含 `manifest.json` 的 **`extension` 子資料夾**。
 3. 在 Chrome 網址列**手動輸入** `chrome://extensions`，開啟「開發人員模式／Developer mode」。
 4. 按「載入未封裝項目／Load unpacked」，選取 **`extension`**。
 5. 釘選「MSA 手牌記錄器」，於開局前重新整理 MSA，再按「記錄自檢」。
 
 ```text
-msa-hand-recorder-v0.9.0/
+msa-hand-recorder-v0.10.0/
 ├── README.md
 ├── docs/
 └── extension/              ← Chrome 選這一層
@@ -163,9 +169,9 @@ npm run preview
 
 開啟 `http://127.0.0.1:8768/demo/index.html` 查看小窗、小視窗、回顧與管理頁。預覽不讀已安裝擴充功能的真實記錄。
 
-Rust 處理牌組驗證、凍結版本選擇、手牌分類、公開卡／Token 彙整與同版本戰績；JavaScript 保留擷取、儲存、介面與宿主語義橋接。v0.9.0 沿用備份格式、沒有資料庫遷移，也不宣稱速度提升。
+Rust 處理牌組驗證、凍結版本選擇、手牌分類、公開卡／Token 彙整與同版本戰績；JavaScript 保留擷取、儲存、介面與宿主語義橋接。v0.10.0 沿用備份格式、沒有資料庫遷移，也不宣稱速度提升。
 
-[版本紀錄（繁中）](CHANGELOG.md) · [Releases／雙語 v0.9.0 說明](https://github.com/tingwei1111/msa-hand-recorder/releases/tag/v0.9.0)
+[版本紀錄（繁中）](CHANGELOG.md) · [Releases／雙語 v0.10.0 說明](https://github.com/tingwei1111/msa-hand-recorder/releases/tag/v0.10.0)
 
 ## 開源與參與
 

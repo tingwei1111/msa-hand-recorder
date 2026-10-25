@@ -5,6 +5,8 @@
   if (root) root.MSALivePanelUI = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (root) {
   'use strict';
+  const l10n = (source, ...values) => globalThis.MSAI18n ? globalThis.MSAI18n.t(source, ...values) : String(source ?? '').replace(/\{(\d+)\}/g, (match, index) => index < values.length ? String(values[index] ?? '') : match);
+
 
   function normalizePreferences(value) {
     value = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -86,11 +88,11 @@
       return item;
     }
     function tone(value) { return ['success', 'warning', 'error', 'neutral'].indexOf(value) >= 0 ? value : 'neutral'; }
-    function count(value) { return Number.isSafeInteger(value) && value >= 0 ? String(value) : '未知'; }
+    function count(value) { return Number.isSafeInteger(value) && value >= 0 ? String(value) : l10n('未知'); }
     function time(value) {
       var date = new Date(value);
-      if (!value || !Number.isFinite(date.getTime())) return '時間未知';
-      return new Intl.DateTimeFormat('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(date);
+      if (!value || !Number.isFinite(date.getTime())) return l10n('時間未知');
+      return new Intl.DateTimeFormat(root.MSAI18n?.language || 'zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(date);
     }
     function getPreferences() { return Object.assign({}, preferences); }
     function actionMessage(value, warning) {
@@ -100,7 +102,7 @@
     }
     function reportError(error, fallback) {
       if (destroyed) return;
-      var message = error && error.message ? error.message : error ? String(error) : '';
+      var message = error && error.message ? (root.MSAI18n?.message(error.message)||error.message) : error ? String(error) : '';
       actionMessage(fallback + (message ? '：' + message : ''), true);
       if (typeof options.onError === 'function') {
         try { options.onError(error instanceof Error ? error : new Error(message || fallback)); } catch (_) { /* UI remains usable. */ }
@@ -110,9 +112,9 @@
       if (destroyed || typeof options.onPreferencesChange !== 'function') return;
       try {
         Promise.resolve(options.onPreferencesChange(getPreferences())).catch(function (error) {
-          reportError(error, '小窗顯示偏好未能儲存');
+          reportError(error, l10n('小窗顯示偏好未能儲存'));
         });
-      } catch (error) { reportError(error, '小窗顯示偏好未能儲存'); }
+      } catch (error) { reportError(error, l10n('小窗顯示偏好未能儲存')); }
     }
 
     var host = node('div');
@@ -256,33 +258,33 @@
     var launcherDot = node('span', 'status-dot');
     launcherDot.setAttribute('aria-hidden', 'true');
     var launcherCount = node('span', 'launcher-count');
-    var launcherLabel = node('span', '', '對戰小窗');
+    var launcherLabel = node('span', '', l10n('對戰小窗'));
     launcher.append(launcherDot, launcherLabel, launcherCount);
     var panel = node('section', 'panel');
     panel.id = 'msa-live-panel-content';
-    panel.setAttribute('aria-label', 'MSA 即時記錄小窗');
+    panel.setAttribute('aria-label', l10n('MSA 即時記錄小窗'));
     panel.hidden = true;
     var header = node('header', 'panel-header');
     header.tabIndex = 0;
     header.setAttribute('role', 'group');
-    header.setAttribute('aria-label', '移動對戰小窗');
+    header.setAttribute('aria-label', l10n('移動對戰小窗'));
     header.setAttribute('aria-describedby', 'msa-live-move-help');
     var heading = node('div', 'heading');
     var grip = node('span', 'grip', '⋮⋮');
     grip.setAttribute('aria-hidden', 'true');
     var titles = node('div');
-    titles.append(node('div', 'eyebrow', 'MSA · 本機記錄'), node('h2', '', '對戰小窗'));
+    titles.append(node('div', 'eyebrow', l10n('MSA · 本機記錄')), node('h2', '', l10n('對戰小窗')));
     heading.append(grip, titles);
-    var collapse = button('收合', 'collapse');
+    var collapse = button(l10n('收合'), 'collapse');
     collapse.className = 'collapse';
-    collapse.setAttribute('aria-label', '收合對戰小窗');
-    var moveHelp = node('span', 'sr-only', '拖曳標題移動；聚焦標題後以方向鍵每次移動 10 像素，Home 重設位置。Esc 收合。');
+    collapse.setAttribute('aria-label', l10n('收合對戰小窗'));
+    var moveHelp = node('span', 'sr-only', l10n('拖曳標題移動；聚焦標題後以方向鍵每次移動 10 像素，Home 重設位置。Esc 收合。'));
     moveHelp.id = 'msa-live-move-help';
     header.append(heading, collapse, moveHelp);
     var tabs = node('nav', 'tabs');
-    tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', '小窗顯示內容');
+    tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', l10n('小窗顯示內容'));
     var tabButtons = {};
-    [['deck','牌組'],['hand','手牌'],['events','公開事件'],['all','全部']].forEach(function (entry) {
+    [['deck',l10n('牌組')],['hand',l10n('手牌')],['events',l10n('公開事件')],['all',l10n('全部')]].forEach(function (entry) {
       var item = button(entry[1], 'tab-' + entry[0]);
       item.id = 'msa-live-tab-' + entry[0]; item.setAttribute('role','tab');
       item.setAttribute('aria-controls', entry[0] === 'all' ? 'msa-live-deck msa-live-hand msa-live-events' : entry[0] === 'deck' ? 'msa-live-deck' : entry[0] === 'hand' ? 'msa-live-hand' : 'msa-live-events');
@@ -295,18 +297,18 @@
     status.setAttribute('aria-live', 'polite');
     var statusDot = node('span', 'status-dot');
     statusDot.setAttribute('aria-hidden', 'true');
-    var statusLabel = node('span', '', '等待記錄');
+    var statusLabel = node('span', '', l10n('等待記錄'));
     status.append(statusDot, statusLabel);
-    var statusDetail = node('p', 'detail', '對局開始並儲存觀察後，會顯示在這裡。');
+    var statusDetail = node('p', 'detail', l10n('對局開始並儲存觀察後，會顯示在這裡。'));
     var modelNotice = node('p', 'action-status warning');
     modelNotice.hidden = true;
     var healthAlerts = node('section', 'health-alerts');
-    healthAlerts.setAttribute('aria-label','記錄異常提醒');
+    healthAlerts.setAttribute('aria-label',l10n('記錄異常提醒'));
     var endNotice = node('section','health-alert');endNotice.hidden=true;
-    var endDismiss=button('收起提醒','dismiss-end');
-    endNotice.append(node('strong','','賽後記錄／備份與還原'),node('p','','先保留對局頁，核對待存資料與缺口，再到「資料與牌組」備份。此提示不代表手牌全程完整。'),endDismiss);
+    var endDismiss=button(l10n('收起提醒'),'dismiss-end');
+    endNotice.append(node('strong','',l10n('賽後記錄／備份與還原')),node('p','',l10n('先保留對局頁，核對待存資料與缺口，再到「資料與牌組」備份。此提示不代表手牌全程完整。')),endDismiss);
     var displaySettings = node('details', 'display-settings');
-    displaySettings.append(node('summary', '', '顯示設定'));
+    displaySettings.append(node('summary', '', l10n('顯示設定')));
     var settingsGrid = node('div', 'settings-grid');
     function rangeSetting(label, key, min, max, step) {
       var wrap = node('label'), input = node('input'), output = node('output');
@@ -315,49 +317,63 @@
       wrap.append(node('span','',label),input,output); settingsGrid.append(wrap);
       return {input:input,output:output};
     }
-    var widthSetting = rangeSetting('寬度', 'width', 280, 480, 10);
-    var fontSetting = rangeSetting('字級', 'fontSize', 11, 16, 1);
+    var widthSetting = rangeSetting(l10n('寬度'), 'width', 280, 480, 10);
+    var fontSetting = rangeSetting(l10n('字級'), 'fontSize', 11, 16, 1);
     var dockLabel = node('label'), dockSelect = node('select');
-    dockSelect.dataset.preference = 'dock'; dockSelect.setAttribute('aria-label','貼邊位置');
-    [['free','自由移動'],['left','貼左側'],['right','貼右側']].forEach(function (entry) { var option = node('option','',entry[1]);option.value=entry[0];dockSelect.append(option); });
-    dockLabel.append(node('span','','位置'),dockSelect); settingsGrid.append(dockLabel);
-    displaySettings.append(settingsGrid,node('p','meta','窄視窗會自動縮小。拖曳或方向鍵移動會切回自由位置。'));
+    dockSelect.dataset.preference = 'dock'; dockSelect.setAttribute('aria-label',l10n('貼邊位置'));
+    [['free',l10n('自由移動')],['left',l10n('貼左側')],['right',l10n('貼右側')]].forEach(function (entry) { var option = node('option','',entry[1]);option.value=entry[0];dockSelect.append(option); });
+    dockLabel.append(node('span','',l10n('位置')),dockSelect); settingsGrid.append(dockLabel);
+    var languageLabel = node('label'), languageSelect = node('select');
+    languageSelect.dataset.languageSelect = 'true';
+    languageSelect.setAttribute('aria-label', l10n('介面語言'));
+    [['zh-TW','繁體中文'],['zh-CN','简体中文'],['en','English']].forEach(function (entry) {
+      var option = node('option','',entry[1]);option.value=entry[0];option.setAttribute('translate','no');languageSelect.append(option);
+    });
+    languageLabel.append(node('span','',l10n('介面語言')),languageSelect);settingsGrid.append(languageLabel);
+    languageSelect.value = root.MSAI18n?.language || 'zh-TW';
+    languageSelect.addEventListener('change', async function () {
+      languageSelect.disabled = true;
+      try { await root.MSAI18n?.setLanguage(languageSelect.value); }
+      catch (_) { languageSelect.value=root.MSAI18n?.language || 'zh-TW';actionMessage(l10n('語言設定未能儲存，請再試一次。'),true); }
+      finally { languageSelect.disabled=false; }
+    });
+    displaySettings.append(settingsGrid,node('p','meta',l10n('窄視窗會自動縮小。拖曳或方向鍵移動會切回自由位置。')));
     var bookmarkEditor = node('section', 'bookmark-editor'); bookmarkEditor.hidden = true;
-    bookmarkEditor.setAttribute('aria-label','新增此刻書籤');
+    bookmarkEditor.setAttribute('aria-label',l10n('新增此刻書籤'));
     var bookmarkAnchorLabel = node('p','meta');
-    var noteLabel = node('label','','短筆記（選填，最多 500 字）'), noteInput = node('textarea');
+    var noteLabel = node('label','',l10n('短筆記（選填，最多 500 字）')), noteInput = node('textarea');
     noteInput.maxLength = 500; noteInput.rows = 3; noteInput.dataset.field = 'bookmark-note';
     noteLabel.append(noteInput);
-    var tagLabel = node('label','','標籤（選填，最多 40 字）'), tagInput = node('input');
-    tagInput.type = 'text'; tagInput.maxLength = 40; tagInput.placeholder = '例如：攻擊順序、資源、待確認'; tagInput.dataset.field = 'bookmark-tag'; tagLabel.append(tagInput);
-    var bookmarkSave = button('儲存書籤','bookmark-save'), bookmarkCancel = button('取消','bookmark-cancel');
+    var tagLabel = node('label','',l10n('標籤（選填，最多 40 字）')), tagInput = node('input');
+    tagInput.type = 'text'; tagInput.maxLength = 40; tagInput.placeholder = l10n('例如：攻擊順序、資源、待確認'); tagInput.dataset.field = 'bookmark-tag'; tagLabel.append(tagInput);
+    var bookmarkSave = button(l10n('儲存書籤'),'bookmark-save'), bookmarkCancel = button(l10n('取消'),'bookmark-cancel');
     var editorActions = node('div','editor-actions'); editorActions.append(bookmarkCancel,bookmarkSave);
     var bookmarkStatus = node('p','bookmark-status'); bookmarkStatus.setAttribute('role','status');
-    bookmarkEditor.append(node('h3','','標記此刻'),bookmarkAnchorLabel,noteLabel,tagLabel,editorActions,bookmarkStatus);
+    bookmarkEditor.append(node('h3','',l10n('標記此刻')),bookmarkAnchorLabel,noteLabel,tagLabel,editorActions,bookmarkStatus);
     var deckSection = node('section','section');
     deckSection.id = 'msa-live-deck'; deckSection.setAttribute('role','tabpanel'); deckSection.setAttribute('aria-labelledby','msa-live-tab-deck');
     var deckView = root.MSADeckTrackerUI?.create({document:doc,
       onCardControl:function(control,code){control.dataset.cardCode=code;bindCard(control);},
-      onBindDeck:function(payload){return typeof options.onBindDeck==='function'?options.onBindDeck(payload):Promise.resolve({ok:false,reason:'牌組綁定服務尚未載入。'});},
-      onManage:function(){return typeof options.onManage==='function'?options.onManage():Promise.resolve({ok:false,reason:'資料管理服務尚未載入。'});}
+      onBindDeck:function(payload){return typeof options.onBindDeck==='function'?options.onBindDeck(payload):Promise.resolve({ok:false,reason:l10n('牌組綁定服務尚未載入。')});},
+      onManage:function(){return typeof options.onManage==='function'?options.onManage():Promise.resolve({ok:false,reason:l10n('資料管理服務尚未載入。')});}
     });
     if(deckView)deckSection.append(deckView.element);
-    else deckSection.append(node('p','empty','牌組追蹤模組尚未載入，更新後請重新整理 MSA 分頁。'));
+    else deckSection.append(node('p','empty',l10n('牌組追蹤模組尚未載入，更新後請重新整理 MSA 分頁。')));
     var handSection = node('section', 'section');
     handSection.id = 'msa-live-hand'; handSection.setAttribute('role','tabpanel'); handSection.setAttribute('aria-labelledby','msa-live-tab-hand');
     var handTitle = node('div', 'section-title');
     var handCount = node('span', 'section-count');
-    handTitle.append(node('h3', '', '目前已存手牌'), handCount);
+    handTitle.append(node('h3', '', l10n('目前已存手牌')), handCount);
     var hand = node('div', 'hand');
     var handHead = node('div', 'hand-head');
     var turn = node('span', 'turn');
-    var quality = node('span', 'quality unavailable', '尚未觀察');
+    var quality = node('span', 'quality unavailable', l10n('尚未觀察'));
     handHead.append(turn, quality);
-    var handSummary = node('p', 'hand-summary', '尚無已儲存手牌，不能視為空手。');
+    var handSummary = node('p', 'hand-summary', l10n('尚無已儲存手牌，不能視為空手。'));
     var handList = node('ul', 'hand-list');
-    handList.setAttribute('aria-label', '已儲存手牌卡號與數量');
+    handList.setAttribute('aria-label', l10n('已儲存手牌卡號與數量'));
     var saved = node('p', 'saved');
-    var resources = node('p', 'resources', '資源未辨識');
+    var resources = node('p', 'resources', l10n('資源未辨識'));
     var deltaBox = node('div','delta'); var deltaSummary = node('p'); var deltaList = node('ul');
     deltaBox.append(deltaSummary,deltaList);
     hand.append(handHead, handSummary, handList, deltaBox, saved, resources);
@@ -366,16 +382,16 @@
     playSection.id = 'msa-live-events'; playSection.setAttribute('role','tabpanel'); playSection.setAttribute('aria-labelledby','msa-live-tab-events');
     var playTitle = node('div', 'section-title');
     var playCount = node('span', 'section-count');
-    playTitle.append(node('h3', '', '最近公開出牌'), playCount);
-    var playNote = node('p', 'plays-note', '最新在上 · 最多 20 筆 · 含 Token 生成');
+    playTitle.append(node('h3', '', l10n('最近公開出牌')), playCount);
+    var playNote = node('p', 'plays-note', l10n('最新在上 · 最多 20 筆 · 含 Token 生成'));
     var playList = node('ol', 'play-list');
-    playList.setAttribute('aria-label', '雙方最近公開出牌，最新在前');
-    var playEmpty = node('p', 'empty', '尚無已儲存的公開出牌。可按「更新 Log」重新讀取。');
+    playList.setAttribute('aria-label', l10n('雙方最近公開出牌，最新在前'));
+    var playEmpty = node('p', 'empty', l10n('尚無已儲存的公開出牌。可按「更新 Log」重新讀取。'));
     playSection.append(playTitle, playNote, playList, playEmpty);
     var coverage = node('section', 'coverage');
-    var coverageLabel = node('p', 'coverage-label', '尚未收錄公開 Log');
+    var coverageLabel = node('p', 'coverage-label', l10n('尚未收錄公開 Log'));
     var publicCount = node('p', 'meta');
-    coverage.append(coverageLabel, publicCount, node('p', 'coverage-boundary', '即使公開 Log 已見起尾，也不代表手牌全程完整。未觀察的歷史手牌無法補回。'));
+    coverage.append(coverageLabel, publicCount, node('p', 'coverage-boundary', l10n('即使公開 Log 已見起尾，也不代表手牌全程完整。未觀察的歷史手牌無法補回。')));
     var issues = node('details', 'issues');
     issues.hidden = true;
     var issueTitle = node('summary');
@@ -384,27 +400,27 @@
     scroll.append(healthAlerts,endNotice,status,statusDetail,modelNotice,displaySettings,bookmarkEditor,deckSection,handSection,playSection,coverage,issues);
     var footer = node('footer', 'footer');
     var actions = node('div', 'actions');
-    var refreshButton = button('更新 Log', 'refresh');
-    var reviewButton = button('對局回顧', 'review');
+    var refreshButton = button(l10n('更新 Log'), 'refresh');
+    var reviewButton = button(l10n('對局回顧'), 'review');
     reviewButton.className = 'review';
     refreshButton.disabled = true;
     reviewButton.disabled = true;
     actions.append(refreshButton, reviewButton);
-    var bookmarkButton = button('標記此刻','bookmark'); bookmarkButton.className = 'bookmark-open'; bookmarkButton.disabled = true;
-    var manageButton=button('資料與牌組 · 備份與還原','manage');manageButton.className='manage';
+    var bookmarkButton = button(l10n('標記此刻'),'bookmark'); bookmarkButton.className = 'bookmark-open'; bookmarkButton.disabled = true;
+    var manageButton=button(l10n('資料與牌組 · 備份與還原'),'manage');manageButton.className='manage';
     var actionStatus = node('p', 'action-status');
     actionStatus.hidden = true;
     actionStatus.setAttribute('role', 'status');
     actionStatus.setAttribute('aria-live', 'polite');
     footer.append(actions,bookmarkButton,manageButton,actionStatus);
     var preview = node('section','preview'); preview.hidden = true; preview.dataset.role = 'card-preview';
-    preview.setAttribute('role','region'); preview.setAttribute('aria-label','卡片預覽');
-    var previewHeading = node('h3','','卡片資料'), previewClose = button('關閉','card-close'); previewClose.className = 'preview-close';
+    preview.setAttribute('role','region'); preview.setAttribute('aria-label',l10n('卡片預覽'));
+    var previewHeading = node('h3','',l10n('卡片資料')), previewClose = button(l10n('關閉'),'card-close'); previewClose.className = 'preview-close';
     var previewHead = node('div','preview-head'); previewHead.append(previewHeading,previewClose);
     var previewStatus = node('p','meta'); previewStatus.setAttribute('role','status');
     var previewImage = node('img','preview-image'); previewImage.hidden = true; previewImage.referrerPolicy = 'no-referrer';
     var previewImageNote = node('p','meta');
-    var previewText = node('p','preview-text'), previewMeta = node('p','preview-meta'), previewSource = node('a','preview-source','官方來源');
+    var previewText = node('p','preview-text'), previewMeta = node('p','preview-meta'), previewSource = node('a','preview-source',l10n('官方來源'));
     previewSource.target = '_blank'; previewSource.rel = 'noopener noreferrer'; previewSource.referrerPolicy = 'no-referrer'; previewSource.hidden = true;
     preview.append(previewHead,previewStatus,previewImage,previewImageNote,previewText,previewMeta,previewSource);
     panel.append(header,tabs,scroll,footer,preview);
@@ -485,8 +501,8 @@
       closePreview(false); previewTrigger = trigger; previewPinned = pinned; previewCode = code;
       var sequence = ++lookupSequence, context = modelContext();
       preview.hidden = false; preview.setAttribute('aria-busy','true');
-      text(previewHeading,code); text(previewStatus,'正在查詢官方卡片資料…');
-      text(previewText,''); text(previewMeta,'僅查詢這張卡，不傳送整份手牌。'); text(previewImageNote,'');
+      text(previewHeading,code); text(previewStatus,l10n('正在查詢官方卡片資料…'));
+      text(previewText,''); text(previewMeta,l10n('僅查詢這張卡，不傳送整份手牌。')); text(previewImageNote,'');
       previewSource.hidden = true; previewSource.removeAttribute('href');
       if (pinned) previewClose.focus({preventScroll:true});
       try {
@@ -496,24 +512,24 @@
           var source = officialSource(card.sourceUrl);
           if (source) { previewSource.href = source; previewSource.hidden = false; }
           var date = new Date(card.fetchedAt);
-          text(previewMeta,'卡文語言 ' + (card.locale || '未知') + ' · 圖片語言 ' + (card.imageLocale || '未知') +
-            ' · ' + (card.status === 'ok' ? '擷取 ' : '查詢 ') + (Number.isFinite(date.getTime()) ? date.toLocaleString('zh-TW') : '時間未知'));
+          text(previewMeta,l10n('卡文語言 ') + (card.locale || l10n('未知')) + l10n(' · 圖片語言 ') + (card.imageLocale || l10n('未知')) +
+            ' · ' + (card.status === 'ok' ? l10n('擷取 ') : l10n('查詢 ')) + (Number.isFinite(date.getTime()) ? date.toLocaleString(root.MSAI18n?.language || 'zh-TW') : l10n('時間未知')));
         }
         if (!card || card.status !== 'ok' || (card.cardCode && card.cardCode !== code)) {
-          text(previewStatus,card && card.status === 'notfound' ? '找不到這張卡的官方資料。' : '卡片資料暫時無法取得。');
-          text(previewText,card && card.reason || '資料仍屬未知，請稍後重試。');
-          if (!card || (card.cardCode && card.cardCode !== code)) text(previewMeta,'未取得可信資料；語言與擷取時間未知。');
+          text(previewStatus,card && card.status === 'notfound' ? l10n('找不到這張卡的官方資料。') : l10n('卡片資料暫時無法取得。'));
+          text(previewText,root.MSAI18n?.message(card?.reason) || card && card.reason || l10n('資料仍屬未知，請稍後重試。'));
+          if (!card || (card.cardCode && card.cardCode !== code)) text(previewMeta,l10n('未取得可信資料；語言與擷取時間未知。'));
           return;
         }
         text(previewHeading,card.name ? code + ' · ' + card.name : code);
-        text(previewStatus,card.cardType || '卡片類型未提供'); text(previewText,card.text || '官方卡文未提供。');
+        text(previewStatus,card.cardType || l10n('卡片類型未提供')); text(previewText,card.text || l10n('官方卡文未提供。'));
         var data = safeCardImageSource(card.imageDataUrl,card.imageUrl,code);
         previewImage.hidden = !data;
-        text(previewImageNote,data ? '' : '圖片未能載入；仍可閱讀卡文或開啟官方來源。');
+        text(previewImageNote,data ? '' : l10n('圖片未能載入；仍可閱讀卡文或開啟官方來源。'));
         if (data) { previewImage.alt = code + (card.name ? ' ' + card.name : ''); previewImage.src = data; }
       } catch (error) {
         if (!destroyed && sequence === lookupSequence && context === modelContext()) {
-          text(previewStatus,'卡片資料查詢失敗。'); text(previewText,String(error && error.message || error));
+          text(previewStatus,l10n('卡片資料查詢失敗。')); text(previewText,String(error && error.message || error));
         }
       } finally { if (!destroyed && sequence === lookupSequence) preview.setAttribute('aria-busy','false'); }
     }
@@ -535,13 +551,13 @@
     function updateButtons() {
       refreshButton.disabled = refreshing || !model.gameId || typeof options.onRefresh !== 'function';
       refreshButton.setAttribute('aria-busy', String(refreshing));
-      text(refreshButton, refreshing ? '更新中…' : '更新 Log');
+      text(refreshButton, refreshing ? l10n('更新中…') : l10n('更新 Log'));
       reviewButton.disabled = reviewing || !model.sessionId || model.canReview === false || typeof options.onReview !== 'function';
       reviewButton.setAttribute('aria-busy', String(reviewing));
       bookmarkButton.disabled = bookmarking || !model.identityConfirmed || !model.latestSnapshot?.id || model.canBookmark === false || typeof options.onBookmark !== 'function';
       bookmarkSave.disabled = bookmarking; bookmarkCancel.disabled = bookmarking;
       noteInput.disabled = bookmarking; tagInput.disabled = bookmarking;
-      bookmarkSave.setAttribute('aria-busy',String(bookmarking)); text(bookmarkSave,bookmarking ? '儲存中…' : '儲存書籤');
+      bookmarkSave.setAttribute('aria-busy',String(bookmarking)); text(bookmarkSave,bookmarking ? l10n('儲存中…') : l10n('儲存書籤'));
       manageButton.disabled=managing||typeof options.onManage!=='function';manageButton.setAttribute('aria-busy',String(managing));
     }
     var actionLabels = { 'deploy-unit': '部署機體', 'deploy-token': 'Token 生成', 'play-command': '使用 Command',
@@ -580,10 +596,10 @@
       });
       if (alerts.length) launcherDot.className = 'status-dot ' + (alerts.some(function (alert) { return alert.level === 'error'; }) ? 'error' : 'warning');
       healthAlerts.hidden = !alerts.length;
-      text(launcherLabel,alerts.length || stateTone === 'error' ? '記錄需檢查' : '對戰小窗');
+      text(launcherLabel,alerts.length || stateTone === 'error' ? l10n('記錄需檢查') : l10n('對戰小窗'));
       launcher.classList.toggle('attention',Boolean(alerts.length || stateTone === 'error'));
       reconcile(healthAlerts,alertRows,alerts,function () {
-        var item=node('div','health-alert'), title=node('strong'),detail=node('p'),ack=button('知道了','dismiss-alert');
+        var item=node('div','health-alert'), title=node('strong'),detail=node('p'),ack=button(l10n('知道了'),'dismiss-alert');
         item.append(title,detail,ack);
         var row={element:item,title:title,detail:detail,ack:ack,alert:null,busy:false};
         ack.addEventListener('click',async function () {
@@ -593,27 +609,27 @@
           try {
             var result=await options.onDismissAlert(alert.code);
             if(destroyed || context!==modelContext())return;
-            if(!result || result.ok!==true) {actionMessage(result && result.reason || '尚未確認提醒狀態已儲存。',true);return;}
+            if(!result || result.ok!==true) {actionMessage(result && result.reason || l10n('尚未確認提醒狀態已儲存。'),true);return;}
             acknowledgedAlerts.add(key);update(model);
-          } catch(error) {if(context===modelContext())reportError(error,'提醒狀態未能更新');}
+          } catch(error) {if(context===modelContext())reportError(error,l10n('提醒狀態未能更新'));}
           finally {row.busy=false;if(!destroyed)ack.disabled=false;}
         });return row;
-      },function(row,alert){row.alert=alert;text(row.title,alert.title || '記錄需檢查');text(row.detail,alert.detail || '請核對記錄狀態。');row.ack.disabled=row.busy||typeof options.onDismissAlert!=='function';},
+      },function(row,alert){row.alert=alert;text(row.title,root.MSAI18n?.message(alert.title) || alert.title || l10n('記錄需檢查'));text(row.detail,root.MSAI18n?.message(alert.detail) || alert.detail || l10n('請核對記錄狀態。'));row.ack.disabled=row.busy||typeof options.onDismissAlert!=='function';},
       function(alert){return String(alert.code)+'|'+String(alert.observedAt || '');});
-      text(statusLabel, model.statusLabel || '等待記錄');
-      text(statusDetail, model.statusDetail || '尚無已儲存資料；請在對局中確認記錄已啟用。');
-      text(modelNotice, [model.preferenceError, model.refreshMessage].filter(Boolean).join(' · '));
+      text(statusLabel, root.MSAI18n?.message(model.statusLabel) || model.statusLabel || l10n('等待記錄'));
+      text(statusDetail, root.MSAI18n?.message(model.statusDetail) || model.statusDetail || l10n('尚無已儲存資料；請在對局中確認記錄已啟用。'));
+      text(modelNotice, [model.preferenceError, model.refreshMessage].filter(Boolean).map(value=>root.MSAI18n?.message(value)||value).join(' · '));
       modelNotice.hidden = !model.preferenceError && !model.refreshMessage;
-      text(launcherCount, alerts.length ? alerts.length + ' 項提醒' : Number.isSafeInteger(model.snapshotCount) && model.snapshotCount > 0 ? model.snapshotCount + ' 筆' : '');
-      launcher.setAttribute('aria-label', '開啟對戰小窗；' + (model.statusLabel || '等待記錄'));
+      text(launcherCount, alerts.length ? alerts.length + l10n(' 項提醒') : Number.isSafeInteger(model.snapshotCount) && model.snapshotCount > 0 ? model.snapshotCount + l10n(' 筆') : '');
+      launcher.setAttribute('aria-label', l10n('開啟對戰小窗；') + (model.statusLabel || l10n('等待記錄')));
       // A collapsed panel only needs its launcher and alerts. Paint the latest
       // model when opened, rather than reconciling invisible card lists.
       if(!preferences.expanded){updateButtons();return;}
-      text(handCount, count(model.snapshotCount) + ' 筆快照');
-      text(turn, model.currentTurnLabel || '回合未確認');
+      text(handCount, count(model.snapshotCount) + l10n(' 筆快照'));
+      text(turn, root.MSAI18n?.message(model.currentTurnLabel) || model.currentTurnLabel || l10n('回合未確認'));
       quality.className = 'quality ' + (['complete', 'partial', 'unavailable'].indexOf(model.quality) >= 0 ? model.quality : 'unavailable');
-      text(quality, model.qualityLabel || '尚未觀察');
-      text(handSummary, model.handSummary || '尚無已儲存手牌，不能視為空手。');
+      text(quality, root.MSAI18n?.message(model.qualityLabel) || model.qualityLabel || l10n('尚未觀察'));
+      text(handSummary, root.MSAI18n?.message(model.handSummary) || model.handSummary || l10n('尚無已儲存手牌，不能視為空手。'));
       if(!deckSection.hidden)deckView?.update(model.deckTracker || {state:'identity-unknown',availableDecks:[],rows:[],publicCards:{own:[],opponent:[],unknown:[],tokens:[]}});
       // Only the projection's confirmed current run may expose saved hand data.
       var cards = model.identityConfirmed && model.latestSnapshot && Array.isArray(model.handCards) ? model.handCards : [];
@@ -625,7 +641,7 @@
         code.className='card-link card-code';bindCard(code);
         item.append(code, quantity); return { element: item, code: code, quantity: quantity };
       }, function (row, card) {
-        text(row.code,card.cardCode || '卡號未知');row.code.dataset.cardCode=card.cardCode || '';row.code.disabled=!cardCode(card.cardCode)||typeof options.onCardLookup!=='function';
+        text(row.code,card.cardCode || l10n('卡號未知'));row.code.dataset.cardCode=card.cardCode || '';row.code.disabled=!cardCode(card.cardCode)||typeof options.onCardLookup!=='function';
         text(row.quantity,'× '+count(card.count)+(added.has(card.cardCode)?'  +'+added.get(card.cardCode):''));row.element.classList.toggle('added',added.has(card.cardCode));
       },
       function (card, index) { return String(card.cardCode || '') + ':' + index; });
@@ -634,7 +650,7 @@
         if(cardCode(card.cardCode)&&Number.isSafeInteger(card.count)&&card.count>0)changes.push({code:card.cardCode,count:card.count,kind:pair[0],sign:pair[1]});
       });});
       var deltaKey=JSON.stringify([model.latestSnapshot?.id || '',comparable,changes,delta.reason || '']);
-      text(deltaSummary,comparable?(changes.length?'與前一筆完整已存觀察相比；增減原因未知。':'與前一筆完整已存觀察相比，卡號數量未變。'):(delta.reason || '缺少可比較的完整觀察，不推算手牌進出。'));
+      text(deltaSummary,comparable?(changes.length?l10n('與前一筆完整已存觀察相比；增減原因未知。'):l10n('與前一筆完整已存觀察相比，卡號數量未變。')):(delta.reason || l10n('缺少可比較的完整觀察，不推算手牌進出。')));
       deltaBox.classList.toggle('unknown',!comparable);
       if(deltaKey!==lastDeltaKey){
         deltaList.replaceChildren();changes.forEach(function(change){var item=node('li',change.kind),code=button(change.code+' '+change.sign+change.count,'card-lookup');code.className='card-link';code.dataset.cardCode=change.code;code.disabled=typeof options.onCardLookup!=='function';bindCard(code);item.append(code);deltaList.append(item);});
@@ -642,36 +658,36 @@
         if(comparable&&changes.length&&!(win.matchMedia&&win.matchMedia('(prefers-reduced-motion: reduce)').matches)){void deltaBox.offsetWidth;deltaBox.classList.add('pulse');}
         lastDeltaKey=deltaKey;
       }
-      text(saved, model.latestSnapshot && model.identityConfirmed ? '最後已存觀察 ' + time(model.latestSnapshot.timestamp) + ' · ' + (model.playerName || '玩家未辨識') : '只有成功儲存的本人手牌才會顯示。');
-      text(resources, model.resourcesText || '資源未辨識');
+      text(saved, model.latestSnapshot && model.identityConfirmed ? l10n('最後已存觀察 ') + time(model.latestSnapshot.timestamp) + ' · ' + (model.playerName || l10n('玩家未辨識')) : l10n('只有成功儲存的本人手牌才會顯示。'));
+      text(resources, model.resourcesText || l10n('資源未辨識'));
       var plays = Array.isArray(model.recentPlays) ? model.recentPlays.slice(0, 20) : [];
-      text(playCount, plays.length + ' 筆');
+      text(playCount, plays.length + l10n(' 筆'));
       playEmpty.hidden = plays.length > 0;
       reconcile(playList, playRows, plays, function () {
         var item = node('li', 'play'), head = node('div', 'play-head'), actor = node('span', 'actor'), turnLabel = node('span', 'play-turn');
         var cardLabel = button('','card-lookup'), action = node('p', 'play-action'), raw = node('details', 'raw'), rawText = node('p');
         cardLabel.className='play-card card-link';bindCard(cardLabel);
-        raw.append(node('summary', '', '公開原文'), rawText); head.append(actor, turnLabel); item.append(head, cardLabel, action, raw);
+        raw.append(node('summary', '', l10n('公開原文')), rawText); head.append(actor, turnLabel); item.append(head, cardLabel, action, raw);
         return { element: item, actor: actor, turn: turnLabel, card: cardLabel, action: action, rawText: rawText };
       }, function (row, play) {
         var side = model.identityConfirmed && ['own', 'opponent'].indexOf(play.actorSide) >= 0 ? play.actorSide : 'unknown';
         row.element.className = 'play ' + side;
-        text(row.actor, (side === 'own' ? '自己 · ' : '') + (play.actor || '玩家未確認'));
-        text(row.turn, Number.isSafeInteger(play.turn) && play.turn > 0 ? 'T' + play.turn : '回合未標');
-        text(row.card, [play.cardName, play.cardCode].filter(Boolean).join(' · ') || '卡牌未確認');
+        text(row.actor, (side === 'own' ? l10n('自己 · ') : '') + (play.actor || l10n('玩家未確認')));
+        text(row.turn, Number.isSafeInteger(play.turn) && play.turn > 0 ? 'T' + play.turn : l10n('回合未標'));
+        text(row.card, [play.cardName, play.cardCode].filter(Boolean).join(' · ') || l10n('卡牌未確認'));
         row.card.dataset.cardCode=play.cardCode || '';row.card.disabled=!cardCode(play.cardCode)||typeof options.onCardLookup!=='function';
-        text(row.action, (actionLabels[play.action] || play.action || '公開事件') + (play.action === 'deploy-token' ? ' · 非手牌出牌' : ' · 來源區域未確認'));
-        text(row.rawText, play.rawText || '沒有公開原文');
+        text(row.action, (l10n(actionLabels[play.action] || play.action) || l10n('公開事件')) + (play.action === 'deploy-token' ? l10n(' · 非手牌出牌') : l10n(' · 來源區域未確認')));
+        text(row.rawText, play.rawText || l10n('沒有公開原文'));
       }, function (play, index) { return String(play.sourceSessionId || '') + ':' + (play.id || String(index) + ':' + (play.rawText || '')); });
       coverage.className = 'coverage ' + tone(model.coverageTone);
-      text(coverageLabel, model.coverageLabel || '尚未收錄公開 Log');
-      text(publicCount, count(model.publicEventCount) + ' 筆公開事件 · ' + count(model.publicPlayCount) + ' 次公開出牌');
+      text(coverageLabel, root.MSAI18n?.message(model.coverageLabel) || model.coverageLabel || l10n('尚未收錄公開 Log'));
+      text(publicCount, count(model.publicEventCount) + l10n(' 筆公開事件 · ') + count(model.publicPlayCount) + l10n(' 次公開出牌'));
       var captureIssues = Array.isArray(model.captureIssues) ? model.captureIssues : [];
       issues.hidden = !captureIssues.length;
-      text(issueTitle, '手牌擷取缺口 · ' + captureIssues.length + ' 筆');
+      text(issueTitle, l10n('手牌擷取缺口 · ') + captureIssues.length + l10n(' 筆'));
       var issueText = captureIssues.map(function (issue) {
-        if (!issue || typeof issue !== 'object') return String(issue || '原因未提供');
-        return [issue.reason || issue.code || '原因未提供', issue.pendingCount === undefined ? '' : '待存 ' + count(issue.pendingCount) + ' 筆', issue.observedAt ? time(issue.observedAt) : ''].filter(Boolean).join(' · ');
+        if (!issue || typeof issue !== 'object') return String(issue || l10n('原因未提供'));
+        return [root.MSAI18n?.message(issue.reason) || issue.reason || issue.code || l10n('原因未提供'), issue.pendingCount === undefined ? '' : l10n('待存 ') + count(issue.pendingCount) + l10n(' 筆'), issue.observedAt ? time(issue.observedAt) : ''].filter(Boolean).join(' · ');
       });
       if (issueList.dataset.signature !== JSON.stringify(issueText)) {
         issueList.replaceChildren();
@@ -718,13 +734,17 @@
     dockSelect.addEventListener('change',function(){preferences.dock=dockSelect.value;place();savePreferences();});
     previewClose.addEventListener('click',function(){closePreview(true);});
     preview.addEventListener('mouseleave',function(event){if(!previewPinned&&!preview.contains(shadow.activeElement)&&shadow.activeElement!==previewTrigger&&!surface.contains(event.relatedTarget))closePreview(false);});
-    previewImage.addEventListener('error',function(){if(preview.hidden)return;previewImage.hidden=true;previewImage.removeAttribute('src');text(previewImageNote,'圖片未能載入；仍可閱讀卡文或開啟官方來源。');});
+    previewImage.addEventListener('error',function(){if(preview.hidden)return;previewImage.hidden=true;previewImage.removeAttribute('src');text(previewImageNote,l10n('圖片未能載入；仍可閱讀卡文或開啟官方來源。'));});
+    function renderBookmarkAnchor(){
+      if(!bookmarkAnchor)return;
+      var alignment=bookmarkAnchor.turnSource==='log'&&bookmarkAnchor.turn?'Log T'+bookmarkAnchor.turn:bookmarkAnchor.turnSource==='phase-observed'&&bookmarkAnchor.turn?l10n('推計 T')+bookmarkAnchor.turn:l10n('未校準回合');
+      text(bookmarkAnchorLabel,alignment+l10n(' · 快照 ')+bookmarkAnchor.snapshotId+' · '+time(bookmarkAnchor.timestamp)+l10n('。儲存時固定這筆快照。'));
+    }
     bookmarkButton.addEventListener('click',function(){
       if(bookmarkButton.disabled||destroyed)return;
       var snapshot=model.latestSnapshot;
-      bookmarkAnchor={context:modelContext(),snapshotId:snapshot.id,turn:Number.isSafeInteger(snapshot.turn)?snapshot.turn:null,turnSource:snapshot.turnSource||'unknown',observedTurn:snapshot.observedTurn??null};
-      var alignment=bookmarkAnchor.turnSource==='log'&&bookmarkAnchor.turn?'Log T'+bookmarkAnchor.turn:bookmarkAnchor.turnSource==='phase-observed'&&bookmarkAnchor.turn?'推計 T'+bookmarkAnchor.turn:'未校準回合';
-      text(bookmarkAnchorLabel,alignment+' · 快照 '+snapshot.id+' · '+time(snapshot.timestamp)+'。儲存時固定這筆快照。');
+      bookmarkAnchor={context:modelContext(),snapshotId:snapshot.id,timestamp:snapshot.timestamp,turn:Number.isSafeInteger(snapshot.turn)?snapshot.turn:null,turnSource:snapshot.turnSource||'unknown',observedTurn:snapshot.observedTurn??null};
+      renderBookmarkAnchor();
       noteInput.value='';tagInput.value='';text(bookmarkStatus,'');bookmarkEditor.hidden=false;
       noteInput.focus({preventScroll:true});bookmarkEditor.scrollIntoView({block:'nearest'});place();
     });
@@ -732,22 +752,22 @@
     bookmarkSave.addEventListener('click',async function(){
       if(bookmarking||!bookmarkAnchor||destroyed)return;
       var anchor=Object.assign({},bookmarkAnchor);
-      if(anchor.context!==modelContext()){text(bookmarkStatus,'對局或玩家已切換，請重新標記。');return;}
-      bookmarking=true;text(bookmarkStatus,'正在儲存書籤…');updateButtons();
+      if(anchor.context!==modelContext()){text(bookmarkStatus,l10n('對局或玩家已切換，請重新標記。'));return;}
+      bookmarking=true;text(bookmarkStatus,l10n('正在儲存書籤…'));updateButtons();
       try{
         var result=await options.onBookmark({snapshotId:anchor.snapshotId,turn:anchor.turn,turnSource:anchor.turnSource,observedTurn:anchor.observedTurn,note:noteInput.value.slice(0,500),tag:tagInput.value.trim().slice(0,40)});
         if(destroyed||anchor.context!==modelContext())return;
-        if(!result||result.ok!==true){text(bookmarkStatus,result&&result.reason||'未確認書籤已儲存，請再試一次。');return;}
-        bookmarkEditor.hidden=true;bookmarkAnchor=null;actionMessage('書籤已儲存，保留按下標記時的快照錨點。',false);
+        if(!result||result.ok!==true){text(bookmarkStatus,result&&result.reason||l10n('未確認書籤已儲存，請再試一次。'));return;}
+        bookmarkEditor.hidden=true;bookmarkAnchor=null;actionMessage(l10n('書籤已儲存，保留按下標記時的快照錨點。'),false);
         if(preferences.expanded&&!dialogVisible)bookmarkButton.focus({preventScroll:true});
-      }catch(error){if(!destroyed&&anchor.context===modelContext())text(bookmarkStatus,'書籤儲存失敗：'+String(error&&error.message||error));}
+      }catch(error){if(!destroyed&&anchor.context===modelContext())text(bookmarkStatus,l10n('書籤儲存失敗：')+String(error&&error.message||error));}
       finally{bookmarking=false;if(!destroyed){updateButtons();place();}}
     });
     endDismiss.addEventListener('click',function(){endNoticeDismissed=true;endNotice.hidden=true;place();});
     manageButton.addEventListener('click',async function(){
       if(manageButton.disabled||destroyed)return;var context=modelContext();managing=true;updateButtons();
-      try{var result=await options.onManage();if(!destroyed&&context===modelContext()&&result&&result.ok===false)actionMessage(result.reason||'資料管理頁未能開啟。',true);}
-      catch(error){if(context===modelContext())reportError(error,'資料管理頁未能開啟');}
+      try{var result=await options.onManage();if(!destroyed&&context===modelContext()&&result&&result.ok===false)actionMessage(result.reason||l10n('資料管理頁未能開啟。'),true);}
+      catch(error){if(context===modelContext())reportError(error,l10n('資料管理頁未能開啟'));}
       finally{managing=false;if(!destroyed)updateButtons();}
     });
     header.addEventListener('pointerdown', function (event) {
@@ -810,16 +830,16 @@
     });
     refreshButton.addEventListener('click', async function () {
       if (refreshing || refreshButton.disabled || destroyed) return;
-      refreshing = true; actionMessage('正在更新公開 Log；請稍候。', false); updateButtons();
+      refreshing = true; actionMessage(l10n('正在更新公開 Log；請稍候。'), false); updateButtons();
       var context = modelContext();
       try {
         var result = await options.onRefresh();
         if (destroyed || context !== modelContext()) return;
-        if (result && (result.ok === false || result.refreshed === false || result.partial)) actionMessage(result.reason || result.error || '未能確認完整刷新；既有記錄仍保留。', true);
-        else if (result && result.refreshed === true) actionMessage('公開 Log 已刷新；手牌缺口仍需個別確認。', false);
-        else actionMessage('更新要求已完成，請核對公開事件筆數與涵蓋狀態。', false);
+        if (result && (result.ok === false || result.refreshed === false || result.partial)) actionMessage(result.reason || result.error || l10n('未能確認完整刷新；既有記錄仍保留。'), true);
+        else if (result && result.refreshed === true) actionMessage(l10n('公開 Log 已刷新；手牌缺口仍需個別確認。'), false);
+        else actionMessage(l10n('更新要求已完成，請核對公開事件筆數與涵蓋狀態。'), false);
       } catch (error) {
-        if (context === modelContext()) reportError(error, '更新 Log 失敗，既有記錄仍保留');
+        if (context === modelContext()) reportError(error, l10n('更新 Log 失敗，既有記錄仍保留'));
       }
       finally { refreshing = false; if (!destroyed) { updateButtons(); place(); } }
     });
@@ -830,9 +850,9 @@
       try {
         var result = await options.onReview();
         if (destroyed || context !== modelContext()) return;
-        if (result && result.ok === false) reportError(result.error || result.reason || '無法開啟', '對局回顧未開啟');
+        if (result && result.ok === false) reportError(result.error || result.reason || l10n('無法開啟'), l10n('對局回顧未開啟'));
       } catch (error) {
-        if (context === modelContext()) reportError(error, '對局回顧未開啟');
+        if (context === modelContext()) reportError(error, l10n('對局回顧未開啟'));
       }
       finally { reviewing = false; if (!destroyed) updateButtons(); }
     });
@@ -868,6 +888,9 @@
       dialogObserver.observe(doc.documentElement, { subtree: true, childList: true, attributes: true,
         attributeFilter: ['role', 'aria-modal', 'aria-hidden', 'open', 'style', 'class'] });
     }
+    var unbindLanguage = root.MSAI18n?.captureStatic(shadow);
+    var unsubscribeLanguage = root.MSAI18n?.subscribe(function () { languageSelect.value=root.MSAI18n.language;surface.lang=root.MSAI18n.htmlLanguage;renderBookmarkAnchor();applyDisplay();update(model);if(!preview.hidden&&previewTrigger){var trigger=previewTrigger,pinned=previewPinned;closePreview(false);lookupCard(trigger,pinned);} });
+    surface.lang=root.MSAI18n?.htmlLanguage || 'zh-Hant';
     applyDisplay();update({});
     checkDialogs();
 
@@ -885,7 +908,7 @@
         if (dialogFrame !== null) win.cancelAnimationFrame(dialogFrame);
         win.removeEventListener('resize', place);
         if (win.visualViewport) win.visualViewport.removeEventListener('resize', place);
-        deckView?.destroy();host.remove(); handRows.clear(); playRows.clear();alertRows.clear();
+        unbindLanguage?.();unsubscribeLanguage?.();deckView?.destroy();host.remove(); handRows.clear(); playRows.clear();alertRows.clear();
       }
     });
   }

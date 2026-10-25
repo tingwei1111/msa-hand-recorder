@@ -8,6 +8,8 @@
   if (root) root.MSALivePanelCore = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (core, battle, tracker) {
   'use strict';
+  const l10n = (source, ...values) => globalThis.MSAI18n ? globalThis.MSAI18n.t(source, ...values) : String(source ?? '').replace(/\{(\d+)\}/g, (match, index) => index < values.length ? String(values[index] ?? '') : match);
+
   const PREFIX = 'msa.session.';
   const text = value => typeof value === 'string' ? value : '';
   const name = value => text(value).trim();
@@ -74,10 +76,10 @@
   }
 
   function projectHand(snapshot, identityConfirmed, mismatch) {
-    const result = {latestSnapshot:null, handCards:[], quality:'unavailable', qualityLabel:'尚無本段快照',
-      handSummary:identityConfirmed ? '本段尚無已存手牌觀察；不使用其他段落的舊手牌。' : '玩家身分尚未確認，不顯示存檔手牌。',
-      currentTurnLabel:'回合未確認', resourcesText:'資源未辨識'};
-    if (mismatch) result.handSummary = '本段存檔玩家與目前玩家不符，未顯示其手牌。';
+    const result = {latestSnapshot:null, handCards:[], quality:'unavailable', qualityLabel:l10n('尚無本段快照'),
+      handSummary:identityConfirmed ? l10n('本段尚無已存手牌觀察；不使用其他段落的舊手牌。') : l10n('玩家身分尚未確認，不顯示存檔手牌。'),
+      currentTurnLabel:l10n('回合未確認'), resourcesText:l10n('資源未辨識')};
+    if (mismatch) result.handSummary = l10n('本段存檔玩家與目前玩家不符，未顯示其手牌。');
     if (!snapshot || !identityConfirmed || mismatch) return result;
     result.latestSnapshot = copy(snapshot);
     const counts = new Map();
@@ -94,21 +96,21 @@
     if (result.quality === 'complete' && (invalid || unknown === null || unknown > 0 || (expected !== null && expected !== known))) {
       result.quality = 'partial';
     }
-    result.qualityLabel = qualityLabels[result.quality];
+    result.qualityLabel = l10n(qualityLabels[result.quality]);
     if (result.quality === 'complete' && known === 0 && unknown === 0 && (expected === null || expected === 0)) {
-      result.handSummary = '已觀察到空手（0 張）；這是最近一次已存觀察。';
+      result.handSummary = l10n('已觀察到空手（0 張）；這是最近一次已存觀察。');
     } else if (result.quality === 'complete') {
-      result.handSummary = `最近已存手牌 ${known} 張；請與當前畫面核對。`;
+      result.handSummary = l10n("最近已存手牌 {0} 張；請與當前畫面核對。", known);
     } else if (result.quality === 'unavailable') {
-      result.handSummary = known ? `可確認 ${known} 張卡號，但這次手牌無法完整辨識；總數不能視為 ${known} 張。` :
-        '這次手牌未知，不能視為 0 張或空手。';
+      result.handSummary = known ? l10n("可確認 {0} 張卡號，但這次手牌無法完整辨識；總數不能視為 {1} 張。", known, known) :
+        l10n('這次手牌未知，不能視為 0 張或空手。');
     } else {
-      result.handSummary = `已辨識 ${known} 張 · 預期 ${expected === null ? '未知' : expected} 張 · 未辨識 ${unknown === null ? '未知' : unknown} 張；資料不完整。`;
+      result.handSummary = l10n("已辨識 {0} 張 · 預期 {1} 張 · 未辨識 {2} 張；資料不完整。", known, expected === null ? l10n('未知') : expected, unknown === null ? l10n('未知') : unknown);
     }
     const turn = count(snapshot.turn), observed = count(snapshot.observedTurn);
-    if (turn && snapshot.turnSource === 'log') result.currentTurnLabel = `T${turn}（Log 確認）`;
-    else if (turn && snapshot.turnSource === 'phase-observed') result.currentTurnLabel = `推計 T${turn}`;
-    else if (observed) result.currentTurnLabel = `觀察回合 ${observed}`;
+    if (turn && snapshot.turnSource === 'log') result.currentTurnLabel = l10n("T{0}（Log 確認）", turn);
+    else if (turn && snapshot.turnSource === 'phase-observed') result.currentTurnLabel = l10n("推計 T{0}", turn);
+    else if (observed) result.currentTurnLabel = l10n("觀察回合 {0}", observed);
     if (snapshot.resources && typeof core?.resourceText === 'function') result.resourcesText = core.resourceText(snapshot.resources);
     return result;
   }
@@ -125,7 +127,7 @@
     const handSession = identityConfirmed && current && !mismatch ? current : null;
     const latest = handSession?.snapshots.at(-1);
     const hand = projectHand(latest && typeof latest === 'object' ? latest : null, identityConfirmed, mismatch);
-    let handDelta = {comparable:false,added:[],removed:[],reason:'尚無可比較的前一筆完整觀察。'};
+    let handDelta = {comparable:false,added:[],removed:[],reason:l10n('尚無可比較的前一筆完整觀察。')};
     const previous = handSession?.snapshots.at(-2);
     if(previous && latest && identityConfirmed && !mismatch){
       const before=projectHand(previous,true,false);
@@ -137,12 +139,12 @@
           text(latest.id).trim()&&previous.id!==latest.id){
         const amounts=new Map(before.handCards.map(card=>[card.cardCode,-card.count]));
         hand.handCards.forEach(card=>amounts.set(card.cardCode,(amounts.get(card.cardCode)||0)+card.count));
-        handDelta={comparable:true,added:[],removed:[],reason:'相鄰完整觀察的張數差，不推定抽牌、出牌或棄牌原因。'};
+        handDelta={comparable:true,added:[],removed:[],reason:l10n('相鄰完整觀察的張數差，不推定抽牌、出牌或棄牌原因。')};
         for(const [cardCode,difference]of amounts){
           if(difference>0)handDelta.added.push({cardCode,count:difference});
           if(difference<0)handDelta.removed.push({cardCode,count:-difference});
         }
-      }else handDelta.reason='前後觀察不完整、順序待確認或跨段落，未推算張數差。';
+      }else handDelta.reason=l10n('前後觀察不完整、順序待確認或跨段落，未推算張數差。');
     }
     // An anonymous source is compatible only when it never recorded a hand.
     // Without a current identity, only this run's public evidence is admitted.
@@ -159,12 +161,12 @@
       else if (sources.length > 1 && typeof battle?.combineSessions === 'function') {
         merged = battle.combineSessions(sources.map(publicOnly));
       } else if (sources.length > 1) {
-        mergeProblem = '公開紀錄合併模組未載入，僅顯示目前記錄段。';
+        mergeProblem = l10n('公開紀錄合併模組未載入，僅顯示目前記錄段。');
       }
-    } catch (_) { mergeProblem = '部分公開紀錄無法合併，僅顯示目前記錄段。'; }
+    } catch (_) { mergeProblem = l10n('部分公開紀錄無法合併，僅顯示目前記錄段。'); }
     if (!merged && current && sources.includes(current)) merged = publicOnly(current);
     try { if (merged && typeof battle?.buildTimeline === 'function') timeline = battle.buildTimeline(merged); }
-    catch (_) { mergeProblem = '公開紀錄摘要無法確認，請開啟回顧頁檢查原文。'; }
+    catch (_) { mergeProblem = l10n('公開紀錄摘要無法確認，請開啟回顧頁檢查原文。'); }
     events = eventsOf(merged);
     originals = originalEvents(events, sources);
     if(cache){cache.publicKey=publicKey;cache.evidence={merged,mergeProblem,timeline,events,originals};}
@@ -185,25 +187,25 @@
         rawText:text(event.rawText), turn:count(event.turn) || null, actorSide});
     }
     const coverage = timeline?.coverage || merged?.battleLog?.coverage || {};
-    let coverageLabel = '尚未收錄公開 Log', coverageTone = 'neutral';
-    if (mergeProblem) { coverageLabel = '公開 Log 合併待確認'; coverageTone = 'warning'; }
+    let coverageLabel = l10n('尚未收錄公開 Log'), coverageTone = 'neutral';
+    if (mergeProblem) { coverageLabel = l10n('公開 Log 合併待確認'); coverageTone = 'warning'; }
     else if (events.length) {
       coverageTone = 'warning';
-      if (coverage.hasGaps || coverage.unmergedCaptureCount) coverageLabel = '公開 Log 有待確認缺口';
-      else if (coverage.publicLogComplete) { coverageLabel = '公開 Log 已見開局與結束'; coverageTone = 'success'; }
-      else coverageLabel = coverage.completeFromStart ? '公開 Log 從開局收錄中' : '僅收錄部分公開 Log';
+      if (coverage.hasGaps || coverage.unmergedCaptureCount) coverageLabel = l10n('公開 Log 有待確認缺口');
+      else if (coverage.publicLogComplete) { coverageLabel = l10n('公開 Log 已見開局與結束'); coverageTone = 'success'; }
+      else coverageLabel = coverage.completeFromStart ? l10n('公開 Log 從開局收錄中') : l10n('僅收錄部分公開 Log');
     }
     const captureIssues = copy(timeline?.handCaptureIssues || merged?.captureIssues || []);
     if (!hand.latestSnapshot) {
       const lastTurn = events.slice().reverse().find(event => count(event?.turn) > 0)?.turn;
-      if (lastTurn) hand.currentTurnLabel = `公開 Log 至 T${lastTurn}`;
+      if (lastTurn) hand.currentTurnLabel = l10n("公開 Log 至 T{0}", lastTurn);
     }
     const model = {gameId, playerName, identityConfirmed,
       sessionId:current && (handSession || current.snapshots.length === 0) && sources.includes(current) ? current.id : null,
       ...hand, snapshotCount:handSession?.snapshots.length || 0,
       publicEventCount:events.length, publicPlayCount:plays.length, recentPlays, coverageLabel, coverageTone,
       captureIssues, handDelta,healthAlerts:copy(Array.isArray(context.healthAlerts)?context.healthAlerts:[]),
-      endObserved:Boolean(context.endObserved),statusLabel:'等待已存資料', statusTone:'neutral', statusDetail:''};
+      endObserved:Boolean(context.endObserved),statusLabel:l10n('等待已存資料'), statusTone:'neutral', statusDetail:''};
     if (tracker?.project) {
       try { model.deckTracker = tracker.project({values,context,handModel:hand,events,players:[...knownPlayers],coverage}); }
       catch (_) {
@@ -211,39 +213,39 @@
         const loading=engine?.state==='loading';
         model.deckTracker={state:loading?'loading':'error',gameId,playerName,contextKey:currentId,sessionId:null,canBind:false,
           deck:null,availableDecks:[],rows:[],publicCards:{own:[],opponent:[],unknown:[],tokens:[]},warnings:[],
-          stateDetail:loading?'牌組核心載入中；手牌與公開 Log 照常記錄。':'牌組資料核心暫時無法使用，請重新載入擴充功能後重整 MSA；既有手牌與 Log 仍保留。'};
+          stateDetail:loading?l10n('牌組核心載入中；手牌與公開 Log 照常記錄。'):l10n('牌組資料核心暫時無法使用，請重新載入擴充功能後重整 MSA；既有手牌與 Log 仍保留。')};
       }
     }
     const pending = count(context.pendingCount) || 0, writeError = text(context.writeError).trim();
     const details = [];
     if (writeError) {
-      model.statusLabel = '儲存需要處理'; model.statusTone = 'error';
-      details.push(`儲存失敗：${writeError}。下方僅顯示已存資料。`);
-      if (context.enabled === false) details.push('新記錄已暫停。');
+      model.statusLabel = l10n('儲存需要處理'); model.statusTone = 'error';
+      details.push(l10n("儲存失敗：{0}。下方僅顯示已存資料。", globalThis.MSAI18n?.message(writeError)||writeError));
+      if (context.enabled === false) details.push(l10n('新記錄已暫停。'));
     } else if (context.enabled === false) {
-      model.statusLabel = '記錄已暫停'; details.push('既有資料仍保留；暫停期間不新增觀察。');
+      model.statusLabel = l10n('記錄已暫停'); details.push(l10n('既有資料仍保留；暫停期間不新增觀察。'));
     } else if (pending) {
-      model.statusLabel = `等待儲存 ${pending} 筆`; model.statusTone = 'warning';
-      details.push('尚未寫入的觀察不會提前顯示為已存快照。');
+      model.statusLabel = l10n("等待儲存 {0} 筆", pending); model.statusTone = 'warning';
+      details.push(l10n('尚未寫入的觀察不會提前顯示為已存快照。'));
     } else if (mismatch) {
-      model.statusLabel = '玩家資料不符'; model.statusTone = 'warning'; details.push(hand.handSummary);
+      model.statusLabel = l10n('玩家資料不符'); model.statusTone = 'warning'; details.push(hand.handSummary);
     } else if (!identityConfirmed) {
-      model.statusLabel = '玩家身分待確認'; model.statusTone = 'warning'; details.push('僅顯示本段公開事件，不判定自己或對手。');
+      model.statusLabel = l10n('玩家身分待確認'); model.statusTone = 'warning'; details.push(l10n('僅顯示本段公開事件，不判定自己或對手。'));
     } else if (mergeProblem || captureIssues.length) {
-      model.statusLabel = '紀錄涵蓋待確認'; model.statusTone = 'warning';
+      model.statusLabel = l10n('紀錄涵蓋待確認'); model.statusTone = 'warning';
     } else if (hand.latestSnapshot && hand.quality !== 'complete') {
-      model.statusLabel = '已存手牌待核對'; model.statusTone = 'warning'; details.push(hand.handSummary);
+      model.statusLabel = l10n('已存手牌待核對'); model.statusTone = 'warning'; details.push(hand.handSummary);
     } else if (hand.latestSnapshot && ['partial','unavailable'].includes(context.quality)) {
-      model.statusLabel = '目前畫面待辨識'; model.statusTone = 'warning';
-      details.push('目前畫面尚未完整辨識；下方保留最近已存觀察，請勿視為此刻完整手牌。');
+      model.statusLabel = l10n('目前畫面待辨識'); model.statusTone = 'warning';
+      details.push(l10n('目前畫面尚未完整辨識；下方保留最近已存觀察，請勿視為此刻完整手牌。'));
     } else if (hand.latestSnapshot) {
-      model.statusLabel = '已有本段手牌觀察'; model.statusTone = 'success'; details.push('僅顯示最近已存觀察；未涵蓋所有瞬間。');
+      model.statusLabel = l10n('已有本段手牌觀察'); model.statusTone = 'success'; details.push(l10n('僅顯示最近已存觀察；未涵蓋所有瞬間。'));
     } else if (events.length) {
-      model.statusLabel = '已存公開 Log'; details.push('本段尚無已存手牌，公開 Log 不能補回過去手牌。');
-    } else details.push('尚未收到本場已儲存的資料。啟用開關不代表已記錄成功。');
-    if (pending && writeError) details.push(`仍有 ${pending} 筆觀察待存。`);
+      model.statusLabel = l10n('已存公開 Log'); details.push(l10n('本段尚無已存手牌，公開 Log 不能補回過去手牌。'));
+    } else details.push(l10n('尚未收到本場已儲存的資料。啟用開關不代表已記錄成功。'));
+    if (pending && writeError) details.push(l10n("仍有 {0} 筆觀察待存。", pending));
     if (mergeProblem) details.push(mergeProblem);
-    if (captureIssues.length) details.push(`有 ${captureIssues.length} 筆手牌擷取缺口；公開 Log 的完整性不能補回缺口。`);
+    if (captureIssues.length) details.push(l10n("有 {0} 筆手牌擷取缺口；公開 Log 的完整性不能補回缺口。", captureIssues.length));
     // The legacy badge repeats counts, errors and captureNote in one status
     // string. Keep extra explanations, but do not repeat the panel's counters
     // or an explanation already represented by a structured state above.
@@ -253,7 +255,7 @@
         if (/^已保存\s*\d+\s*筆(?:手牌|快照)?[。.!！]?$/.test(fragment) ||
             /^Log\s*\d+\s*筆[。.!！]?$/i.test(fragment) || /^待存\s*\d+\s*筆[。.!！]?$/.test(fragment)) continue;
         const key = detailKey(fragment);
-        if (key && !details.some(existing => detailKey(existing).includes(key))) details.push(fragment);
+        if (key && !details.some(existing => detailKey(existing).includes(key))) details.push(globalThis.MSAI18n?.message(fragment)||fragment);
       }
     }
     model.statusDetail = details.join(' ');

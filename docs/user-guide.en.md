@@ -2,11 +2,19 @@
 
 **English** · [繁體中文](使用教學.md) · [Project home](../README.en.md) · [Download releases](https://github.com/tingwei1111/msa-hand-recorder/releases)
 
-This guide covers the **v0.9.0 prerelease** for desktop Google Chrome. MSA Hand Recorder saves observations of your own visible hand and both players' public Battle Log in Mobile Suit Arena. It provides an in-game panel, a deck list with observed counts, match review, bookmarks, deck versions, manually confirmed results, and local backup/restore.
+This guide covers the **v0.10.0 prerelease** for desktop Google Chrome. MSA Hand Recorder saves observations of your own visible hand and both players' public Battle Log in Mobile Suit Arena. It provides an in-game panel, a deck list with observed counts, match review, bookmarks, deck versions, manually confirmed results, and local backup/restore.
 
-**The extension interface is currently in Traditional Chinese.** This English guide translates the controls so that you can follow the existing interface; it does not add an English interface or a language switch. Screenshots below show the Chinese interface with synthetic demonstration data.
+**The interface supports English, Traditional Chinese and Simplified Chinese.** Select **English** under **Interface language** at the top of the popup, review or workspace. In the live panel, use **Display settings**. Your choice is saved and synchronizes across open extension pages. Older screenshots below use Traditional Chinese and synthetic demonstration data; the bilingual control reference remains useful for matching them.
 
 **A complete live match has not yet been validated end to end.** Start with a test match and compare the saved card IDs, counts, turns, and public events with the game. A successful save, a fully recognized snapshot, and a public log containing the start and end are different kinds of evidence; none proves that every hand change was captured.
+
+## Language settings in v0.10
+
+The initial language follows your browser; an explicit saved choice takes priority. Switching language keeps the active recording, selected match, search filters and unsaved deck/result/note drafts. The preference belongs to this Chrome profile and is not overwritten by backup imports. Chrome’s extension-manager name follows Chrome’s language independently.
+
+Player names, notes, card names, official card text, raw Battle Log, and JSON/CSV field names retain their original content. Standalone HTML and Markdown retain the existing Traditional Chinese report-heading template. The English interface requests official English card text; both Chinese interfaces request official Traditional Chinese card text. Text and image languages may differ.
+
+See [v0.10 changes](v0.10.md#english).
 
 ## New controls in v0.9
 
@@ -53,14 +61,14 @@ You do not need to take screenshots for routine recording. The recorder observes
 
 ### First installation
 
-1. Open [GitHub Releases](https://github.com/tingwei1111/msa-hand-recorder/releases). Expand the release's **Assets** and download its install ZIP, for example `msa-hand-recorder-v0.9.0.zip`.
+1. Open [GitHub Releases](https://github.com/tingwei1111/msa-hand-recorder/releases). Expand the release's **Assets** and download its install ZIP, for example `msa-hand-recorder-v0.10.0.zip`.
 2. Extract the ZIP to a permanent folder. Keep this folder after installation; Chrome reads the unpacked extension from it.
 3. Enter `chrome://extensions` directly in Chrome's address bar and enable **Developer mode**.
 4. Click **Load unpacked** and select the extracted **`extension` subfolder**, which contains `manifest.json`.
 5. Pin **MSA 手牌記錄器** in Chrome's extensions menu, then refresh MSA before starting a match.
 
 ```text
-msa-hand-recorder-v0.9.0/
+msa-hand-recorder-v0.10.0/
 ├── README.md
 ├── docs/
 └── extension/          ← select this folder in Chrome
@@ -104,7 +112,7 @@ The extension stores records locally with Chrome's `storage` permission. Its MSA
 
 If updating from an older release produces a Chrome permission prompt, check that it matches the documented official-card domain. The recorder does not need access to MSA's private backend, cookies, or unrelated websites.
 
-In v0.9.0 the deck projection is calculated by Rust compiled to WebAssembly. The visible-page capture, recording, Chrome storage, panel, and backup format retain their existing roles. This migration does not promise a speed improvement. See the [Rust/Wasm technical reference](Rust-Wasm.en.md) for build details.
+In v0.10.0 the deck projection is calculated by Rust compiled to WebAssembly. The visible-page capture, recording, Chrome storage, panel, and backup format retain their existing roles. This migration does not promise a speed improvement. See the [Rust/Wasm technical reference](Rust-Wasm.en.md) for build details.
 
 ## 3. Configure and check recording
 
@@ -222,7 +230,7 @@ Resources retain level, normally available resources, available EX resources, an
 
 Hover over a card ID, focus it with the keyboard, or click it to open a preview. Check the card ID, name, text language, image language, retrieval time, and **官方來源** (Official source) link.
 
-The provider supports official Traditional Chinese and English pages, but **the current panel requests Traditional Chinese card text and has no language selector**. Reading this English guide does not change that request. Images may be in Japanese even when text is Traditional Chinese; inspect the displayed language fields.
+Lookup follows the interface language: English requests official English text, while either Chinese interface requests official Traditional Chinese text. Official text is not machine-converted into Simplified Chinese. Text and image languages are shown separately; an image may use a different language.
 
 A missing card, network error, or failed image remains unresolved; the tool does not substitute another card. Previews do not validate deck legality and do not replace official rules, errata, FAQs, or rulings. Alternate-art filenames are normalized to the base card ID, so the preview may not show the exact artwork in your hand.
 
@@ -411,7 +419,7 @@ Official previews make on-demand requests for a single card to `www.gundam-gcg.c
 | Deck will not save | Check syntax, exactly 50 main cards, maximum four per ID, and separate resource/Token fields. |
 | Fewer matches than recording segments | One game/confirmed player is counted once. Check confirmation and filters; unconfirmed results are excluded from rates. |
 | A downloaded file cannot be found | Check Chrome Downloads. “Download started” does not prove that a file was saved. |
-| No English interface or card-text option appears | v0.8 has Traditional Chinese UI and the panel requests Traditional Chinese text. Use the control reference below; English documentation is not UI localization. |
+| No English interface or card-text option appears | Update to v0.10.0 and reload the existing extension. Choose English in Interface language; refresh MSA after upgrading the extension files. |
 
 ### Common usage questions
 
@@ -433,7 +441,7 @@ Download a full backup in the original environment, install the tool in the dest
 
 ## 13. Chinese-to-English control reference
 
-These are translations for finding the existing Chinese controls. Chrome's own management-page labels follow your browser language.
+Use this reference to match older screenshots and either UI language. Chrome’s own management-page labels follow your browser language.
 
 | Traditional Chinese control/label | English meaning |
 | --- | --- |

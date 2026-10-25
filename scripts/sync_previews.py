@@ -15,6 +15,7 @@ banner = ('\n    <div style="padding:7px 12px;text-align:center;background:#1a29
 
 for page in ("popup", "review", "library"):
     source = (ROOT / "extension" / f"{page}.html").read_text(encoding="utf-8")
+    source = re.sub(r'^[ \t]*<script src="i18n(?:-data)?\.js" defer></script>\n?', "", source, flags=re.M)
     source = re.sub(r'(src|href)="([A-Za-z0-9_-]+\.(?:js|css))"',
                     lambda match: f'{match[1]}="../extension/{match[2]}"', source)
     anchor = f'    <script src="../extension/{page}.js" defer></script>'
@@ -29,7 +30,9 @@ for page in ("popup", "review", "library"):
         if f'src="../extension/{name}"' not in source:
             dependencies.append(f'    <script src="../extension/{name}" defer></script>')
     dependencies += ['    <script src="workspace-mock.js" defer></script>',
-                     '    <script src="popup-mock.js" defer></script>']
+                     '    <script src="popup-mock.js" defer></script>',
+                     '    <script src="../extension/i18n-data.js" defer></script>',
+                     '    <script src="../extension/i18n.js" defer></script>']
     source = source[:script_match.start()] + '\n'.join(dependencies) + '\n' + source[script_match.start():]
     source = source.replace(body_match.group(), body_match.group() + banner, 1)
     target = ROOT / "demo" / f"{page}-preview.html"

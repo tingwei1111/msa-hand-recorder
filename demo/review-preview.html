@@ -1,9 +1,7 @@
-<!doctype html>
-<html lang="zh-Hant">
-  <head>
+<!DOCTYPE html><html lang="zh-Hant"><head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>MSA 本機對局回顧</title>
+    <title data-i18n="MSA 本機對局回顧">MSA 本機對局回顧</title>
     <link rel="stylesheet" href="../extension/review.css">
     <link rel="stylesheet" href="../extension/review-workspace.css">
     <link rel="stylesheet" href="../extension/ui-theme.css">
@@ -16,104 +14,107 @@
     <script src="../extension/library-store.js" defer></script>
     <script src="workspace-mock.js" defer></script>
     <script src="popup-mock.js" defer></script>
+    <script src="../extension/i18n-data.js" defer></script>
+    <script src="../extension/i18n.js" defer></script>
     <script src="../extension/review.js" defer></script>
   </head>
   <body data-view="review">
     <div style="padding:7px 12px;text-align:center;background:#1a293b;color:#b9c9df;font:11px/1.5 system-ui,sans-serif">介面預覽 · 合成資料，未連線至 MSA；查卡只查詢官方公開卡片來源</div>
-    <a class="skip-link" href="#turn-content">跳至選取回合</a>
+    <a class="skip-link" href="#turn-content" data-i18n="跳至選取回合">跳至選取回合</a>
     <header class="page-header">
       <div class="header-inner">
         <div>
-          <p class="eyebrow">MSA <span class="brand-divider">/</span> MATCH REVIEW <span class="version-tag">0.9</span></p>
-          <h1>對局回顧</h1>
-          <p class="header-description">沿著回合，回看自己的手牌與雙方公開戰況。</p>
+          <p class="eyebrow">MSA <span class="brand-divider">/</span> MATCH REVIEW <span class="version-tag">0.10</span></p>
+          <h1 data-i18n="對局回顧">對局回顧</h1>
+          <p class="header-description" data-i18n="沿著回合，回看自己的手牌與雙方公開戰況。">沿著回合，回看自己的手牌與雙方公開戰況。</p>
         </div>
-        <span class="local-mark"><span aria-hidden="true">●</span> 本機記錄 · 無資料上傳</span>
+        <div class="header-tools"><label class="language-control"><span data-i18n="介面語言">介面語言</span><select data-language-select="" aria-label="介面語言" data-i18n-aria-label="介面語言"><option value="zh-TW" translate="no">繁體中文</option><option value="zh-CN" translate="no">简体中文</option><option value="en" translate="no">English</option></select></label><span class="local-mark"><span aria-hidden="true">●</span> <span data-i18n="本機記錄 · 無資料上傳">本機記錄 · 無資料上傳</span></span></div>
       </div>
     </header>
 
     <main class="page-shell">
       <div id="review-notice" class="notice" role="status" aria-live="polite" hidden></div>
-      <section class="session-bar" aria-label="對局選擇與匯出" aria-busy="false">
+      <section class="session-bar" aria-label="對局選擇與匯出" aria-busy="false" data-i18n-aria-label="對局選擇與匯出">
         <div class="session-picker">
-          <label for="review-session">選擇對局記錄</label>
-          <select id="review-session" disabled><option>載入中…</option></select>
+          <label for="review-session" data-i18n="選擇對局記錄">選擇對局記錄</label>
+          <select id="review-session" disabled><option data-i18n="載入中…">載入中…</option></select>
         </div>
         <div class="export-toolbar">
-          <label class="visually-hidden" for="export-format">報告格式</label>
+          <label class="visually-hidden" for="export-format" data-i18n="報告格式">報告格式</label>
           <select id="export-format" aria-describedby="export-format-hint">
-            <option value="html">獨立 HTML 報告</option>
-            <option value="markdown">回合報告 Markdown</option>
-            <option value="json">全部原始資料 JSON</option>
-            <option value="hands-csv">手牌 CSV</option>
-            <option value="events-csv">公開事件 CSV</option>
-            <option value="combined-csv">手牌＋事件整合 CSV</option>
+            <option value="html" data-i18n="獨立 HTML 報告">獨立 HTML 報告</option>
+            <option value="markdown" data-i18n="回合報告 Markdown">回合報告 Markdown</option>
+            <option value="json" data-i18n="全部原始資料 JSON">全部原始資料 JSON</option>
+            <option value="hands-csv" data-i18n="手牌 CSV">手牌 CSV</option>
+            <option value="events-csv" data-i18n="公開事件 CSV">公開事件 CSV</option>
+            <option value="combined-csv" data-i18n="手牌＋事件整合 CSV">手牌＋事件整合 CSV</option>
           </select>
-          <button id="download-review" class="button primary" type="button" disabled>匯出 HTML 報告</button>
-          <button id="refresh-review" class="button subtle" type="button">重新整理</button>
+          <button id="download-review" class="button primary" type="button" disabled data-i18n="匯出 HTML 報告">匯出 HTML 報告</button>
+          <button id="refresh-review" class="button subtle" type="button" data-i18n="重新整理">重新整理</button>
         </div>
       </section>
-      <div class="export-options"><label><input id="export-saved-only" type="checkbox">直接匯出已存資料</label><p id="export-format-hint" class="export-hint">HTML 可離線閱讀，保留全部已儲存快照與公開 Log。匯出不受搜尋篩選影響。</p></div>
+      <div class="export-options"><label><input id="export-saved-only" type="checkbox"><span data-i18n="直接匯出已存資料">直接匯出已存資料</span></label><p id="export-format-hint" class="export-hint" data-i18n="HTML 可離線閱讀，保留全部已儲存快照與公開 Log。匯出不受搜尋篩選影響。">HTML 可離線閱讀，保留全部已儲存快照與公開 Log。匯出不受搜尋篩選影響。</p></div>
       <div class="merge-control">
-        <label><input id="combine-segments" type="checkbox" checked> 合併同對局的相容記錄段落</label>
-        <span id="merge-status" class="muted">正在檢查記錄段落。</span>
+        <label><input id="combine-segments" type="checkbox" checked=""> <span data-i18n="合併同對局的相容記錄段落">合併同對局的相容記錄段落</span></label>
+        <span id="merge-status" class="muted" data-i18n="正在檢查記錄段落。">正在檢查記錄段落。</span>
       </div>
 
       <section id="review-empty" class="empty-state" hidden>
         <span class="empty-mark" aria-hidden="true">01</span>
-        <h2>從下一場，留下你的回合</h2>
-        <p>開局前啟用「MSA 手牌記錄器」並重新整理 MSA 分頁。確認手牌與公開事件開始增加後，再回來檢視。</p>
-        <p class="muted">已結束對局的公開 Log 可以收錄；當時沒有記錄的手牌無法補回。</p>
+        <h2 data-i18n="從下一場，留下你的回合">從下一場，留下你的回合</h2>
+        <p data-i18n="開局前啟用「MSA 手牌記錄器」並重新整理 MSA 分頁。確認手牌與公開事件開始增加後，再回來檢視。">開局前啟用「MSA 手牌記錄器」並重新整理 MSA 分頁。確認手牌與公開事件開始增加後，再回來檢視。</p>
+        <p class="muted" data-i18n="已結束對局的公開 Log 可以收錄；當時沒有記錄的手牌無法補回。">已結束對局的公開 Log 可以收錄；當時沒有記錄的手牌無法補回。</p>
       </section>
 
       <div id="review-content" hidden>
         <section class="overview" aria-labelledby="match-heading">
           <div class="overview-heading">
-            <div class="match-identity"><p class="eyebrow light">本次檢視</p><h2 id="match-heading">對局回顧</h2><details class="record-details"><summary>記錄時間與來源</summary><p id="match-meta" class="muted"></p></details></div>
-            <span id="coverage-badge" class="badge unavailable">尚未收錄 Log</span>
+            <div class="match-identity"><p class="eyebrow light" data-i18n="本次檢視">本次檢視</p><h2 id="match-heading" data-i18n="對局回顧">對局回顧</h2><details class="record-details"><summary data-i18n="記錄時間與來源">記錄時間與來源</summary><p id="match-meta" class="muted"></p></details></div>
+            <span id="coverage-badge" class="badge unavailable" data-i18n="尚未收錄 Log">尚未收錄 Log</span>
           </div>
           <dl class="summary-stats">
-            <div><dt>手牌快照</dt><dd id="review-snapshot-count">0</dd></div>
-            <div><dt>公開事件</dt><dd id="review-event-count">0</dd></div>
-            <div><dt>公開出牌</dt><dd id="review-play-count">0</dd></div>
-            <div><dt>回合群組</dt><dd id="review-turn-count">0</dd></div>
+            <div><dt data-i18n="手牌快照">手牌快照</dt><dd id="review-snapshot-count">0</dd></div>
+            <div><dt data-i18n="公開事件">公開事件</dt><dd id="review-event-count">0</dd></div>
+            <div><dt data-i18n="公開出牌">公開出牌</dt><dd id="review-play-count">0</dd></div>
+            <div><dt data-i18n="回合群組">回合群組</dt><dd id="review-turn-count">0</dd></div>
           </dl>
           <p id="coverage-detail" class="coverage-detail"></p>
-          <p id="export-refresh-status" class="export-refresh-status" role="status" aria-live="polite">匯出前會刷新對應對局，請先保持 MSA 分頁開啟。</p>
+          <p id="export-refresh-status" class="export-refresh-status" role="status" aria-live="polite" data-i18n="匯出前會刷新對應對局，請先保持 MSA 分頁開啟。">匯出前會刷新對應對局，請先保持 MSA 分頁開啟。</p>
           <ul id="review-warnings" class="warning-list" hidden></ul>
-          <p id="capture-reminder" class="capture-reminder">公開 Log 完整不代表手牌全程完整；未觀察的歷史手牌無法補回。</p>
+          <p id="capture-reminder" class="capture-reminder" data-i18n="公開 Log 完整不代表手牌全程完整；未觀察的歷史手牌無法補回。">公開 Log 完整不代表手牌全程完整；未觀察的歷史手牌無法補回。</p>
         </section>
 
-        <section id="workspace-notes" aria-label="對局書籤與筆記"></section>
+        <section id="workspace-notes" aria-label="對局書籤與筆記" data-i18n-aria-label="對局書籤與筆記"></section>
 
         <div class="review-layout">
-          <aside class="turn-sidebar" aria-label="回合導覽">
-            <div class="sidebar-heading"><h2>回合索引</h2><span id="turn-filter-count" class="muted" aria-live="polite"></span></div>
-            <label class="visually-hidden" for="turn-search">搜尋回合、玩家、卡名或卡號</label>
-            <div class="search-control"><input id="turn-search" type="search" placeholder="搜尋回合、玩家、卡號" autocomplete="off" aria-controls="turn-navigation"><button id="clear-turn-search" class="search-clear" type="button" hidden aria-label="清除回合搜尋">清除</button></div>
-            <nav id="turn-navigation" aria-label="選擇回合"></nav>
-            <p id="turn-search-empty" class="muted" role="status" hidden>沒有符合的回合。清除搜尋可回到所有回合。</p>
-            <p class="sidebar-note">「觀察」序號與絕對回合分開呈現，避免把未校準手牌錯接到某一回合。</p>
+          <aside class="turn-sidebar" aria-label="回合導覽" data-i18n-aria-label="回合導覽">
+            <div class="sidebar-heading"><h2 data-i18n="回合索引">回合索引</h2><span id="turn-filter-count" class="muted" aria-live="polite"></span></div>
+            <label class="visually-hidden" for="turn-search" data-i18n="搜尋回合、玩家、卡名或卡號">搜尋回合、玩家、卡名或卡號</label>
+            <div class="search-control"><input id="turn-search" type="search" placeholder="搜尋回合、玩家、卡號" autocomplete="off" aria-controls="turn-navigation" data-i18n-placeholder="搜尋回合、玩家、卡號"><button id="clear-turn-search" class="search-clear" type="button" hidden aria-label="清除回合搜尋" data-i18n-aria-label="清除回合搜尋" data-i18n="清除">清除</button></div>
+            <nav id="turn-navigation" aria-label="選擇回合" data-i18n-aria-label="選擇回合"></nav>
+            <p id="turn-search-empty" class="muted" role="status" hidden data-i18n="沒有符合的回合。清除搜尋可回到所有回合。">沒有符合的回合。清除搜尋可回到所有回合。</p>
+            <p class="sidebar-note" data-i18n="「觀察」序號與絕對回合分開呈現，避免把未校準手牌錯接到某一回合。">「觀察」序號與絕對回合分開呈現，避免把未校準手牌錯接到某一回合。</p>
           </aside>
-          <section class="turn-detail" aria-label="選取回合內容">
+          <section class="turn-detail" aria-label="選取回合內容" data-i18n-aria-label="選取回合內容">
             <div id="turn-content" tabindex="-1"></div>
             <div id="turn-unavailable" class="empty-state compact" hidden>
-              <h2 id="turn-empty-heading">尚無可整理的回合</h2>
-              <p id="turn-empty-description">原始資料仍可下載 JSON；請在 MSA 顯示手牌或開啟 Battle Log 後再重新整理。</p>
+              <h2 id="turn-empty-heading" data-i18n="尚無可整理的回合">尚無可整理的回合</h2>
+              <p id="turn-empty-description" data-i18n="原始資料仍可下載 JSON；請在 MSA 顯示手牌或開啟 Battle Log 後再重新整理。">原始資料仍可下載 JSON；請在 MSA 顯示手牌或開啟 Battle Log 後再重新整理。</p>
             </div>
           </section>
         </div>
 
         <details class="raw-log-panel">
-          <summary>原始公開 Log 資料 <span class="muted">供核對與進一步分析</span></summary>
-          <p class="muted">以下只呈現工具已收錄的內容，不代表伺服器端整場紀錄。</p>
+          <summary><span data-i18n="原始公開 Log 資料">原始公開 Log 資料</span> <span class="muted" data-i18n="供核對與進一步分析">供核對與進一步分析</span></summary>
+          <p class="muted" data-i18n="以下只呈現工具已收錄的內容，不代表伺服器端整場紀錄。">以下只呈現工具已收錄的內容，不代表伺服器端整場紀錄。</p>
           <pre id="raw-log-text"></pre>
         </details>
       </div>
       <footer class="page-footer">
-        <p>只呈現已觀察的資料。手牌數量差不代表已確認的抽牌、出牌或棄牌；最早／最晚不保證是回合起訖。</p>
-        <p>合併檢視不覆寫原段落。HTML 保留完整原始 JSON；分享前請確認自己的手牌與玩家資訊。</p>
+        <p data-i18n="只呈現已觀察的資料。手牌數量差不代表已確認的抽牌、出牌或棄牌；最早／最晚不保證是回合起訖。">只呈現已觀察的資料。手牌數量差不代表已確認的抽牌、出牌或棄牌；最早／最晚不保證是回合起訖。</p>
+        <p data-i18n="合併檢視不覆寫原段落。HTML 保留完整原始 JSON；分享前請確認自己的手牌與玩家資訊。">合併檢視不覆寫原段落。HTML 保留完整原始 JSON；分享前請確認自己的手牌與玩家資訊。</p>
       </footer>
     </main>
-  </body>
-</html>
+
+
+</body></html>

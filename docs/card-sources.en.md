@@ -6,7 +6,7 @@ Card previews query the official GUNDAM CARD GAME website for the **single card 
 
 Previews do not read an opponent's hidden hand or send the match record, player names, or hand list to the official website.
 
-**The v0.8.0 interface remains in Traditional Chinese. The live panel currently requests cards with `locale: 'zh-tw'` and has no card-text language selector.** English lookup support in the provider API below is a developer capability; it is not an available English-preview setting in the current UI. English documentation does not change the extension's interface language. Check the displayed text and image languages separately: Traditional Chinese text may accompany a Japanese card image.
+**v0.10.0 offers three interface languages.** English requests official English card text; Traditional and Simplified Chinese request official Traditional Chinese card text. No official card text is converted into Simplified Chinese. Check text and image languages separately; an official image may use a different language.
 
 ## Public sources checked
 

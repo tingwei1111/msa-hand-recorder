@@ -1,5 +1,8 @@
-(() => {
+(async () => {
   'use strict';
+  const l10n = (source, ...values) => globalThis.MSAI18n ? globalThis.MSAI18n.t(source, ...values) : String(source ?? '').replace(/\{(\d+)\}/g, (match, index) => index < values.length ? String(values[index] ?? '') : match);
+  await globalThis.MSAI18n?.ready();
+
 
   const PREFIX = 'msa.session.';
   const $ = (id) => document.getElementById(id);
@@ -55,12 +58,12 @@
   function dateText(value) {
     const date = new Date(value);
     return value && Number.isFinite(date.getTime())
-      ? new Intl.DateTimeFormat('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(date)
-      : '時間未知';
+      ? new Intl.DateTimeFormat(globalThis.MSAI18n?.language || 'zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(date)
+      : l10n('時間未知');
   }
 
   function countText(value) {
-    return Number.isInteger(value) && value >= 0 ? String(value) : '未知';
+    return Number.isInteger(value) && value >= 0 ? String(value) : l10n('未知');
   }
 
   function notice(text, error = false) {
@@ -71,14 +74,14 @@
   }
 
   function failure(text, error) {
-    notice(text + (typeof error?.message === 'string' ? ` ${error.message}` : ''), true);
+    notice(text + (typeof error?.message === 'string' ? ` ${globalThis.MSAI18n?.message(error.message)||error.message}` : ''), true);
   }
 
   function refreshSummary(info) {
     const result = info?.refresh;
-    if (!result) return '匯出前會刷新對應對局。請先保持 MSA 分頁開啟，再匯出報告。';
-    const status = result.code==='saved-only'?'已選擇匯出本機已存資料':result.refreshed ? (result.partial ? '已刷新，仍有部分資料待確認' : '已完成匯出前刷新') : '未能確認刷新，使用既有資料';
-    return `${status}${result.reason ? `：${result.reason}` : ''}。${info.storageReadAt ? `本機資料讀取於 ${dateText(info.storageReadAt)}。` : ''}`;
+    if (!result) return l10n('匯出前會刷新對應對局。請先保持 MSA 分頁開啟，再匯出報告。');
+    const status = result.code==='saved-only'?l10n('已選擇匯出本機已存資料'):result.refreshed ? (result.partial ? l10n('已刷新，仍有部分資料待確認') : l10n('已完成匯出前刷新')) : l10n('未能確認刷新，使用既有資料');
+    return `${status}${result.reason ? `：${result.reason}` : ''}。${info.storageReadAt ? l10n("本機資料讀取於 {0}。", dateText(info.storageReadAt)) : ''}`;
   }
 
   function renderExportStatus() {
@@ -88,14 +91,14 @@
       lastExportInfo.playerName === session?.playerName && lastExportInfo.selectedSessionId === selectedId &&
       lastExportInfo.combined === Boolean(session?.isCombined) ? lastExportInfo : null;
     const issueCount = timeline?.handCaptureIssues?.length || 0;
-    node.textContent = refreshSummary(relevant) + (issueCount ? ` 另有 ${issueCount} 筆手牌擷取缺口，刷新公開 Log 不會補回未存入的手牌觀察。` : '');
+    node.textContent = refreshSummary(relevant) + (issueCount ? l10n(" 另有 {0} 筆手牌擷取缺口，刷新公開 Log 不會補回未存入的手牌觀察。", issueCount) : '');
     node.className = `export-refresh-status${issueCount || (relevant && (!relevant.refresh?.refreshed || relevant.refresh?.partial)) ? ' partial' : ''}`;
   }
 
   function updateExportControls() {
-    const labels = { html: '匯出 HTML 報告', markdown: '匯出 Markdown', json: '匯出原始 JSON',
-      'hands-csv': '匯出手牌 CSV', 'events-csv': '匯出事件 CSV', 'combined-csv': '匯出整合 CSV' };
-    $('download-review').textContent = exportInProgress ? '正在準備匯出…' : labels[$('export-format').value] || '匯出報告';
+    const labels = { html: l10n('匯出 HTML 報告'), markdown: l10n('匯出 Markdown'), json: l10n('匯出原始 JSON'),
+      'hands-csv': l10n('匯出手牌 CSV'), 'events-csv': l10n('匯出事件 CSV'), 'combined-csv': l10n('匯出整合 CSV') };
+    $('download-review').textContent = exportInProgress ? l10n('正在準備匯出…') : labels[$('export-format').value] || l10n('匯出報告');
     $('download-review').setAttribute('aria-busy', String(exportInProgress));
     if($('export-saved-only'))$('export-saved-only').disabled=exportInProgress;
     document.querySelector('.session-bar')?.setAttribute('aria-busy', String(exportInProgress));
@@ -111,37 +114,37 @@
   }
 
   function sourceLabel(snapshot) {
-    if (!snapshot) return '沒有手牌觀察';
-    if (snapshot.turnSource === 'log' && Number.isInteger(snapshot.turn)) return `Log 校準 T${snapshot.turn}`;
-    if (snapshot.turnSource === 'phase-observed' && Number.isInteger(snapshot.turn)) return `推計 T${snapshot.turn} · 觀察 ${countText(snapshot.observedTurn)}`;
-    if (Number.isInteger(snapshot.observedTurn)) return `觀察回合 ${snapshot.observedTurn}（未校準）`;
-    return '回合來源未知';
+    if (!snapshot) return l10n('沒有手牌觀察');
+    if (snapshot.turnSource === 'log' && Number.isInteger(snapshot.turn)) return l10n("Log 校準 T{0}", snapshot.turn);
+    if (snapshot.turnSource === 'phase-observed' && Number.isInteger(snapshot.turn)) return l10n("推計 T{0} · 觀察 {1}", snapshot.turn, countText(snapshot.observedTurn));
+    if (Number.isInteger(snapshot.observedTurn)) return l10n("觀察回合 {0}（未校準）", snapshot.observedTurn);
+    return l10n('回合來源未知');
   }
 
   function turnTitle(group) {
-    if (group.key === 'unassigned') return '開局前／未標回合事件';
+    if (group.key === 'unassigned') return l10n('開局前／未標回合事件');
     if (Number.isInteger(group.turn) && group.turn > 0) {
-      return `${group.turnSource === 'phase-observed' && !(group.events || []).length ? '推計' : ''}第 ${group.turn} 回合`;
+      return l10n("{0}第 {1} 回合", group.turnSource === 'phase-observed' && !(group.events || []).length ? l10n('推計') : '', group.turn);
     }
-    if (Number.isInteger(group.observedTurn)) return `觀察回合 ${group.observedTurn}`;
-    return '未標回合的公開紀錄';
+    if (Number.isInteger(group.observedTurn)) return l10n("觀察回合 {0}", group.observedTurn);
+    return l10n('未標回合的公開紀錄');
   }
 
   function coverageView(coverage, eventCount) {
-    if (!eventCount) return { label: '尚未收錄 Log', quality: 'unavailable', detail: '目前沒有可排列的公開事件；自己的手牌快照仍獨立保留。' };
-    let label = '部分公開紀錄';
+    if (!eventCount) return { label: l10n('尚未收錄 Log'), quality: 'unavailable', detail: l10n('目前沒有可排列的公開事件；自己的手牌快照仍獨立保留。') };
+    let label = l10n('部分公開紀錄');
     let quality = 'partial';
-    if (coverage.hasGaps || coverage.unmergedCaptureCount) label = '有待確認缺口';
-    else if (coverage.publicLogComplete) { label = '已見開局與結束'; quality = 'complete'; }
-    else if (coverage.completeFromStart) label = '從開局收錄中';
+    if (coverage.hasGaps || coverage.unmergedCaptureCount) label = l10n('有待確認缺口');
+    else if (coverage.publicLogComplete) { label = l10n('已見開局與結束'); quality = 'complete'; }
+    else if (coverage.completeFromStart) label = l10n('從開局收錄中');
     const detail = [
-      Number.isInteger(coverage.firstTurn) && Number.isInteger(coverage.lastTurn) ? `已見 T${coverage.firstTurn}–T${coverage.lastTurn}` : '回合範圍未確認',
-      coverage.gameStarted ? '有開局標記' : '未見開局標記',
-      coverage.gameEnded ? '有結束標記' : '未見結束標記',
-      coverage.hasGaps ? '存在待確認缺口' : '未標出已知缺口',
-      coverage.unmergedCaptureCount ? `${coverage.unmergedCaptureCount} 次擷取尚未合併` : ''
+      Number.isInteger(coverage.firstTurn) && Number.isInteger(coverage.lastTurn) ? l10n("已見 T{0}–T{1}", coverage.firstTurn, coverage.lastTurn) : l10n('回合範圍未確認'),
+      coverage.gameStarted ? l10n('有開局標記') : l10n('未見開局標記'),
+      coverage.gameEnded ? l10n('有結束標記') : l10n('未見結束標記'),
+      coverage.hasGaps ? l10n('存在待確認缺口') : l10n('未標出已知缺口'),
+      coverage.unmergedCaptureCount ? l10n("{0} 次擷取尚未合併", coverage.unmergedCaptureCount) : ''
     ].filter(Boolean).join(' · ');
-    return { label, quality, detail: '公開 Log：' + detail + '。' };
+    return { label, quality, detail: l10n('公開 Log：') + detail + '。' };
   }
 
   function allEvents() {
@@ -150,10 +153,10 @@
 
   function makeTimeline(current) {
     if (typeof globalThis.MSABattleLogCore?.buildTimeline !== 'function') {
-      throw new Error('公開 Log 核心未載入，請重新載入擴充功能。');
+      throw new Error(l10n('公開 Log 核心未載入，請重新載入擴充功能。'));
     }
     const result = globalThis.MSABattleLogCore.buildTimeline(current);
-    if (!result || !Array.isArray(result.turns)) throw new Error('回合資料格式無法辨識。');
+    if (!result || !Array.isArray(result.turns)) throw new Error(l10n('回合資料格式無法辨識。'));
     return result;
   }
 
@@ -177,8 +180,8 @@
     const issueFocus = $('review-warnings').contains(document.activeElement) ? document.activeElement?.dataset.focusKey : '';
     const events = allEvents();
     const coverage = coverageView(timeline.coverage || {}, events.length);
-    $('match-heading').textContent = session.playerName ? `${session.playerName} 的對局記錄` : '公開對局記錄（無本人手牌身份）';
-    $('match-meta').textContent = `對局 ${session.gameId || '未知'} · ${session.isCombined ? `合併 ${session.sourceSessions.length} 段` : `段落 ${session.id || selectedId}`} · ${dateText(session.startedAt)} 起`;
+    $('match-heading').textContent = session.playerName ? l10n("{0} 的對局記錄", session.playerName) : l10n('公開對局記錄（無本人手牌身份）');
+    $('match-meta').textContent = l10n("對局 {0} · {1} · {2} 起", session.gameId || l10n('未知'), session.isCombined ? l10n("合併 {0} 段", session.sourceSessions.length) : l10n("段落 {0}", session.id || selectedId), dateText(session.startedAt));
     $('review-snapshot-count').textContent = String((session.snapshots || []).length);
     $('review-event-count').textContent = String(events.length);
     $('review-play-count').textContent = String(events.filter((event) => event.isPlay === true).length);
@@ -186,15 +189,15 @@
     $('coverage-badge').className = `badge ${coverage.quality}`;
     $('coverage-badge').textContent = coverage.label;
     $('coverage-detail').textContent = coverage.detail;
-    $('capture-reminder').textContent = '公開 Log 已見起尾，不代表手牌全程完整；未觀察的歷史手牌無法補回。';
+    $('capture-reminder').textContent = l10n('公開 Log 已見起尾，不代表手牌全程完整；未觀察的歷史手牌無法補回。');
     renderExportStatus();
     $('review-warnings').replaceChildren();
     for (const warning of Array.isArray(timeline.warnings) ? timeline.warnings : []) {
-      $('review-warnings').append(element('li', '', warning));
+      $('review-warnings').append(element('li', '', globalThis.MSAI18n?.message(warning)||warning));
     }
     for (const issue of timeline.handCaptureIssues || []) {
       const entry = element('li');
-      const details = keyedDetails(`issue:${issue.sourceSessionId}:${issue.sourceIssueIndex}`, '手牌擷取缺口原始欄位');
+      const details = keyedDetails(`issue:${issue.sourceSessionId}:${issue.sourceIssueIndex}`, l10n('手牌擷取缺口原始欄位'));
       details.open = openIssues.has(details.dataset.detailKey);
       details.append(element('pre', '', JSON.stringify(issue, null, 2)));
       entry.append(details);
@@ -203,24 +206,24 @@
     $('review-warnings').hidden = !$('review-warnings').children.length;
     if (issueFocus) Array.from($('review-warnings').querySelectorAll('[data-focus-key]'))
       .find((node) => node.dataset.focusKey === issueFocus)?.focus({ preventScroll: true });
-    $('raw-log-text').textContent = session.battleLog ? JSON.stringify(session.battleLog, null, 2) : '這筆記錄沒有已儲存的公開 Log。';
+    $('raw-log-text').textContent = session.battleLog ? JSON.stringify(session.battleLog, null, 2) : l10n('這筆記錄沒有已儲存的公開 Log。');
   }
 
   function handCard(snapshot, label) {
     const box = element('section', 'hand-card');
     const heading = element('div', 'hand-card-header');
     const quality = snapshot && Object.hasOwn(qualityLabels, snapshot.quality) ? snapshot.quality : 'unavailable';
-    heading.append(element('h4', '', label), element('span', `badge ${quality}`, snapshot ? qualityLabels[quality] : '未觀察'));
+    heading.append(element('h4', '', label), element('span', `badge ${quality}`, snapshot ? l10n(qualityLabels[quality]) : l10n('未觀察')));
     box.append(heading);
     if (!snapshot) {
-      box.append(element('p', 'muted', '沒有這個回合的手牌快照。這不代表沒有手牌。'));
+      box.append(element('p', 'muted', l10n('沒有這個回合的手牌快照。這不代表沒有手牌。')));
       return box;
     }
     box.append(element('p', 'hand-time', `${dateText(snapshot.timestamp)} · ${sourceLabel(snapshot)}`));
     const cards = Array.isArray(snapshot.hand) ? snapshot.hand.filter((card) => card && typeof card.cardCode === 'string' && Number.isInteger(card.count) && card.count > 0) : [];
     const count = element('p', 'hand-count');
-    count.append(element('strong', '', cards.reduce((sum, card) => sum + card.count, 0)), element('span', '', '張已辨識'));
-    box.append(count, element('p', 'muted', `預期 ${countText(snapshot.expectedCount)} · 未辨識 ${countText(snapshot.unknownCount)} · ${snapshot.phase || '階段未知'}`));
+    count.append(element('strong', '', cards.reduce((sum, card) => sum + card.count, 0)), element('span', '', l10n('張已辨識')));
+    box.append(count, element('p', 'muted', l10n("預期 {0} · 未辨識 {1} · {2}", countText(snapshot.expectedCount), countText(snapshot.unknownCount), snapshot.phase || l10n('階段未知'))));
     const list = element('ul', 'hand-list');
     for (const card of cards) {
       const row = element('li');
@@ -229,14 +232,14 @@
     }
     box.append(list);
     if (!cards.length) box.append(element('p', 'muted', quality === 'complete' && snapshot.expectedCount === 0 && snapshot.unknownCount === 0
-      ? '這次快照已確認為 0 張手牌。' : '沒有可確認的卡號，不能視為空手。'));
-    if (snapshot.reason && quality !== 'complete') box.append(element('p', 'small-note', `辨識原因：${snapshot.reason}`));
+      ? l10n('這次快照已確認為 0 張手牌。') : l10n('沒有可確認的卡號，不能視為空手。')));
+    if (snapshot.reason && quality !== 'complete') box.append(element('p', 'small-note', l10n("辨識原因：{0}", snapshot.reason)));
     if (snapshot.resources) box.append(element('p', 'resource-line', typeof globalThis.MSARecorderCore.resourceText === 'function'
       ? globalThis.MSARecorderCore.resourceText(snapshot.resources)
-      : `資源等級 ${countText(snapshot.resources.level)} · 一般可用 ${countText(snapshot.resources.active)} · EX 可用未知`));
-    const metadata = keyedDetails(`snapshot:${snapshot.id || snapshot.timestamp}:${label}`, '來源與原始快照欄位', 'snapshot-metadata');
+      : l10n("資源等級 {0} · 一般可用 {1} · EX 可用未知", countText(snapshot.resources.level), countText(snapshot.resources.active))));
+    const metadata = keyedDetails(`snapshot:${snapshot.id || snapshot.timestamp}:${label}`, l10n('來源與原始快照欄位'), 'snapshot-metadata');
     if (snapshot.id) metadata.append(element('p', 'snapshot-id', snapshot.id));
-    if (snapshot.sourceSessionId) metadata.append(element('p', 'muted', `來源段落 ${snapshot.sourceSessionId}`));
+    if (snapshot.sourceSessionId) metadata.append(element('p', 'muted', l10n("來源段落 {0}", snapshot.sourceSessionId)));
     metadata.append(element('pre', '', JSON.stringify(snapshot, null, 2)));
     box.append(metadata);
     const noteButton = workspace?.buttonForSnapshot(snapshot);
@@ -245,13 +248,13 @@
   }
 
   function actionText(event) {
-    return Object.hasOwn(actionLabels, event.action) ? actionLabels[event.action] : event.action || '公開事件';
+    return Object.hasOwn(actionLabels, event.action) ? l10n(actionLabels[event.action]) : event.action || l10n('公開事件');
   }
 
   function rawDetails(event, expanded) {
-    const details = keyedDetails(`play:${event.id || event.sourceIndex}`, '查看公開 Log 原文');
+    const details = keyedDetails(`play:${event.id || event.sourceIndex}`, l10n('查看公開 Log 原文'));
     details.open = Boolean(expanded);
-    details.append(element('pre', 'raw-event', event.rawText || '（沒有原文）'));
+    details.append(element('pre', 'raw-event', event.rawText || l10n('（沒有原文）')));
     return details;
   }
 
@@ -267,18 +270,18 @@
       const list = element('ul', 'play-list');
       const ownPlays = plays.filter((event) => (event.actor || null) === name);
       const heading = element('div', 'player-heading');
-      heading.append(element('h4', '', name ? `${own ? '自己 · ' : ''}${name}` : '玩家未確認'), element('span', 'badge', `${ownPlays.length} 次`));
+      heading.append(element('h4', '', name ? `${own ? l10n('自己 · ') : ''}${name}` : l10n('玩家未確認')), element('span', 'badge', l10n("{0} 次", ownPlays.length)));
       column.append(heading);
       for (const event of ownPlays) {
         const row = element('li');
         const card = event.primaryCard;
         row.append(element('div', 'play-title', card?.name || card?.cardCode || actionText(event)));
-        row.append(element('p', 'play-meta', [actionText(event), card?.cardCode || '', '來源區域未確認'].filter(Boolean).join(' · ')));
+        row.append(element('p', 'play-meta', [actionText(event), card?.cardCode || '', l10n('來源區域未確認')].filter(Boolean).join(' · ')));
         row.append(rawDetails(event, expanded));
         list.append(row);
       }
       column.append(list);
-      if (!ownPlays.length) column.append(element('p', 'muted', '此群組未收錄這位玩家的公開出牌。'));
+      if (!ownPlays.length) column.append(element('p', 'muted', l10n('此群組未收錄這位玩家的公開出牌。')));
       container.append(column);
     }
     return container;
@@ -292,19 +295,19 @@
       const row = element('li');
       const heading = element('div', 'event-heading');
       heading.append(element('span', 'event-order', `#${Number.isInteger(event.sourceIndex) ? event.sourceIndex + 1 : index + 1}`),
-        element('span', 'event-kind', actionText(event)), element('span', 'event-actor', event.actor || '玩家未標示'));
+        element('span', 'event-kind', actionText(event)), element('span', 'event-actor', event.actor || l10n('玩家未標示')));
       for (const card of Array.isArray(event.cards) ? event.cards : []) {
         if (card?.cardCode) heading.append(element('span', 'inline-card', card.cardCode));
       }
-      row.append(heading, element('pre', 'raw-event', event.rawText || '（沒有原文）'));
-      const metadata = keyedDetails(`event:${event.id || event.sourceIndex || index}`, '來源與擷取資訊');
-      if (event.capturedAt) metadata.append(element('p', 'muted', `首次擷取 ${dateText(event.capturedAt)}；不是事件發生時間`));
+      row.append(heading, element('pre', 'raw-event', event.rawText || l10n('（沒有原文）')));
+      const metadata = keyedDetails(`event:${event.id || event.sourceIndex || index}`, l10n('來源與擷取資訊'));
+      if (event.capturedAt) metadata.append(element('p', 'muted', l10n("首次擷取 {0}；不是事件發生時間", dateText(event.capturedAt))));
       metadata.append(element('pre', 'raw-event', JSON.stringify(event, null, 2)));
       row.append(metadata);
       list.append(row);
     });
     panel.append(list);
-    if (!events.length) panel.append(element('p', 'muted', '這個群組沒有已收錄的公開事件。沒有紀錄不代表沒有行動。'));
+    if (!events.length) panel.append(element('p', 'muted', l10n('這個群組沒有已收錄的公開事件。沒有紀錄不代表沒有行動。')));
     return panel;
   }
 
@@ -321,17 +324,17 @@
     const root = element('article', 'turn-article');
     const titlebar = element('div', 'turn-titlebar');
     const title = element('div');
-    const actorSource = { 'turn-ended-log': '回合結束 Log', 'hand-observation': '畫面觀察', 'first-player-order': '依先後手推計', unknown: '來源未知' };
+    const actorSource = { 'turn-ended-log': l10n('回合結束 Log'), 'hand-observation': l10n('畫面觀察'), 'first-player-order': l10n('依先後手推計'), unknown: l10n('來源未知') };
     const heading = element('h2', '', turnTitle(group));
     heading.tabIndex = -1;
     heading.dataset.focusKey = 'turn-heading';
-    title.append(heading, element('p', 'muted', [group.activePlayer ? `行動方：${group.activePlayer}（${actorSource[group.activePlayerSource] || '來源待核對'}）` : '行動方未確認',
-      `${(group.events || []).length} 筆公開事件`, `${group.snapshotCount || 0} 筆手牌觀察`].join(' · ')));
+    title.append(heading, element('p', 'muted', [group.activePlayer ? l10n("行動方：{0}（{1}）", group.activePlayer, actorSource[group.activePlayerSource] || l10n('來源待核對')) : l10n('行動方未確認'),
+      l10n("{0} 筆公開事件", (group.events || []).length), l10n("{0} 筆手牌觀察", group.snapshotCount || 0)].join(' · ')));
     titlebar.append(title);
     const position = visibleGroups.findIndex((item) => item.key === group.key);
     const pager = element('nav', 'turn-pager');
-    pager.setAttribute('aria-label', '切換目前篩選的回合');
-    for (const [offset, label] of [[-1, '← 上一回合'], [1, '下一回合 →']]) {
+    pager.setAttribute('aria-label', l10n('切換目前篩選的回合'));
+    for (const [offset, label] of [[-1, l10n('← 上一回合')], [1, l10n('下一回合 →')]]) {
       const button = element('button', 'button subtle', label);
       button.type = 'button';
       button.disabled = position + offset < 0 || position + offset >= visibleGroups.length;
@@ -342,12 +345,12 @@
       });
       pager.append(button);
     }
-    pager.append(element('span', 'turn-position', `${position + 1} / ${visibleGroups.length}${$('turn-search').value.trim() ? ' · 搜尋結果' : ' 個群組'}`));
+    pager.append(element('span', 'turn-position', `${position + 1} / ${visibleGroups.length}${$('turn-search').value.trim() ? l10n(' · 搜尋結果') : l10n(' 個群組')}`));
     titlebar.append(pager);
     root.append(titlebar);
     const jumpLinks = element('nav', 'turn-jump-links');
-    jumpLinks.setAttribute('aria-label', '本回合內容捷徑');
-    for (const [id, label] of [['turn-hands', '手牌快照'], ['turn-plays', '雙方出牌'], ['turn-events', '公開事件']]) {
+    jumpLinks.setAttribute('aria-label', l10n('本回合內容捷徑'));
+    for (const [id, label] of [['turn-hands', l10n('手牌快照')], ['turn-plays', l10n('雙方出牌')], ['turn-events', l10n('公開事件')]]) {
       const link = element('a', '', label);
       link.href = `#${id}`;
       link.dataset.focusKey = `jump:${id}`;
@@ -356,39 +359,39 @@
     root.append(jumpLinks);
     const uncalibrated = !Number.isInteger(group.turn);
     if (uncalibrated || group.key === 'unassigned') root.append(element('p', 'boundary-note', group.key === 'unassigned'
-      ? '這些公開事件沒有回合編號，可能屬於開局前流程；保留原文及順序，不與未校準手牌強行對應。'
-      : `此觀察群組未校準到絕對回合，與 Battle Log 的第 N 回合分開列出。來源段落：${group.first?.sourceSessionId || session.id || '未知'}。`));
-    if (group.handFlags?.turnAlignment === 'estimated') root.append(element('p', 'boundary-note', '本回合有依行動方切換推計對齊的手牌；不是每一筆都直接由 Log 校準。請搭配快照時間與各筆來源核對。'));
-    if (group.handFlags?.hasIncompleteObservations) root.append(element('p', 'boundary-note', '這個回合含有部分或無法辨識的手牌快照。全部觀察仍逐筆保留；不跨越未知狀態推算數量差。'));
-    const hands = keyedDetails('hand-summary', '手牌首末摘要', 'summary-panel');
-    hands.querySelector('summary').append(element('span', '', '展開比較最早／最晚觀察；不保證是回合起訖'));
+      ? l10n('這些公開事件沒有回合編號，可能屬於開局前流程；保留原文及順序，不與未校準手牌強行對應。')
+      : l10n("此觀察群組未校準到絕對回合，與 Battle Log 的第 N 回合分開列出。來源段落：{0}。", group.first?.sourceSessionId || session.id || l10n('未知'))));
+    if (group.handFlags?.turnAlignment === 'estimated') root.append(element('p', 'boundary-note', l10n('本回合有依行動方切換推計對齊的手牌；不是每一筆都直接由 Log 校準。請搭配快照時間與各筆來源核對。')));
+    if (group.handFlags?.hasIncompleteObservations) root.append(element('p', 'boundary-note', l10n('這個回合含有部分或無法辨識的手牌快照。全部觀察仍逐筆保留；不跨越未知狀態推算數量差。')));
+    const hands = keyedDetails('hand-summary', l10n('手牌首末摘要'), 'summary-panel');
+    hands.querySelector('summary').append(element('span', '', l10n('展開比較最早／最晚觀察；不保證是回合起訖')));
     const pair = element('div', 'hand-pair');
-    pair.append(handCard(group.first || group.hand?.first || null, '最早觀察'), handCard(group.last || group.hand?.last || null, '最晚觀察'));
+    pair.append(handCard(group.first || group.hand?.first || null, l10n('最早觀察')), handCard(group.last || group.hand?.last || null, l10n('最晚觀察')));
     hands.append(pair);
     root.append(hands);
-    const history = turnSection('全部手牌快照', `${group.snapshotCount || 0} 筆觀察 · 數量差不代表進出原因`);
+    const history = turnSection(l10n('全部手牌快照'), l10n("{0} 筆觀察 · 數量差不代表進出原因", group.snapshotCount || 0));
     history.id = 'turn-hands';
     history.tabIndex = -1;
     history.dataset.focusKey = 'section:turn-hands';
     const observations = Array.isArray(group.observations) ? group.observations : [];
     const historyList = element('div', 'snapshot-history');
     for (const observation of observations) {
-      const card = handCard(observation.snapshot, `快照 ${observation.index}`);
+      const card = handCard(observation.snapshot, l10n("快照 {0}", observation.index));
       card.dataset.snapshotId = observation.snapshot.id || '';
       card.dataset.sourceSessionId = observation.snapshot.sourceSessionId || session?.id || '';
-      card.append(element('p', 'snapshot-delta', globalThis.MSABattleLogCore.deltaDescription(observation)));
+      card.append(element('p', 'snapshot-delta', ((value)=>globalThis.MSAI18n?.message(value)||value)(globalThis.MSABattleLogCore.deltaDescription(observation))));
       historyList.append(card);
     }
-    if (!observations.length) historyList.append(element('p', 'muted', '沒有這個回合的手牌觀察，不能視為空手。'));
+    if (!observations.length) historyList.append(element('p', 'muted', l10n('沒有這個回合的手牌觀察，不能視為空手。')));
     history.append(historyList);
     root.append(history);
-    const plays = turnSection('雙方公開出牌', '只依公開 Log 分類，不由手牌差值推測');
+    const plays = turnSection(l10n('雙方公開出牌'), l10n('只依公開 Log 分類，不由手牌差值推測'));
     plays.id = 'turn-plays';
     plays.tabIndex = -1;
     plays.dataset.focusKey = 'section:turn-plays';
     plays.append(playColumns(group, expanded));
     root.append(plays);
-    const events = turnSection('公開事件與原文', '保留出現順序與原文');
+    const events = turnSection(l10n('公開事件與原文'), l10n('保留出現順序與原文'));
     events.id = 'turn-events';
     events.tabIndex = -1;
     events.dataset.focusKey = 'section:turn-events';
@@ -422,8 +425,8 @@
       button.dataset.focusKey = `turn-nav:${group.key}`;
       button.setAttribute('aria-current', group.key === selectedTurnKey ? 'true' : 'false');
       button.setAttribute('aria-controls', 'turn-content');
-      button.append(element('strong', '', turnTitle(group)), element('span', '', `${(group.events || []).length} 事件 · ${group.snapshotCount || 0} 手牌快照`));
-      if (!Number.isInteger(group.turn) && group.first?.sourceSessionId) button.append(element('span', '', `段落 ${String(group.first.sourceSessionId).slice(-12)}`));
+      button.append(element('strong', '', turnTitle(group)), element('span', '', l10n("{0} 事件 · {1} 手牌快照", (group.events || []).length, group.snapshotCount || 0)));
+      if (!Number.isInteger(group.turn) && group.first?.sourceSessionId) button.append(element('span', '', l10n("段落 {0}", String(group.first.sourceSessionId).slice(-12))));
       button.addEventListener('click', () => { selectedTurnKey = group.key; renderNavigation('navigation'); });
       button.addEventListener('keydown', (event) => {
         const index = filtered.findIndex((item) => item.key === group.key);
@@ -440,8 +443,8 @@
     $('turn-unavailable').hidden = Boolean(selected);
     if (selected) $('turn-content').append(renderTurn(selected));
     else {
-      $('turn-empty-heading').textContent = search ? '沒有符合的回合' : '尚無可整理的回合';
-      $('turn-empty-description').textContent = search ? '換一個卡號、玩家名稱或回合關鍵字試試。' : '原始資料仍可下載 JSON；請在 MSA 顯示手牌或開啟 Battle Log 後再重新整理。';
+      $('turn-empty-heading').textContent = search ? l10n('沒有符合的回合') : l10n('尚無可整理的回合');
+      $('turn-empty-description').textContent = search ? l10n('換一個卡號、玩家名稱或回合關鍵字試試。') : l10n('原始資料仍可下載 JSON；請在 MSA 顯示手牌或開啟 Battle Log 後再重新整理。');
     }
     for (const node of $('turn-content').querySelectorAll('details[data-detail-key]')) {
       if (openDetails.has(node.dataset.detailKey)) node.open = true;
@@ -458,20 +461,20 @@
   }
 
   function compatibleSessions(current) {
-    if (!current.gameId) return { sources: [current], note: '沒有可核對的對局 ID，僅顯示此段。' };
-    if (current.isCombined) return { sources: [current], note: '此筆已是合併報告，保留其原始合併結果，避免再次加入來源段落。' };
+    if (!current.gameId) return { sources: [current], note: l10n('沒有可核對的對局 ID，僅顯示此段。') };
+    if (current.isCombined) return { sources: [current], note: l10n('此筆已是合併報告，保留其原始合併結果，避免再次加入來源段落。') };
     const sameGame = sessions.map((entry) => entry.session).filter((item) => item.gameId === current.gameId && !item.isCombined);
     const names = [...new Set(sameGame.map((item) => typeof item.playerName === 'string' ? item.playerName.trim() : '').filter(Boolean))];
     const ownName = typeof current.playerName === 'string' ? current.playerName.trim() : '';
-    if (!ownName && current.snapshots.length) return { sources: [current], note: '此段手牌身份未確認，避免混合玩家，僅顯示此段。' };
-    if (!ownName && names.length > 1) return { sources: [current], note: '同局有多位手牌玩家；請選定具名段落後再合併。' };
+    if (!ownName && current.snapshots.length) return { sources: [current], note: l10n('此段手牌身份未確認，避免混合玩家，僅顯示此段。') };
+    if (!ownName && names.length > 1) return { sources: [current], note: l10n('同局有多位手牌玩家；請選定具名段落後再合併。') };
     const targetName = ownName || names[0] || '';
     const sources = sameGame.filter((item) => {
       const name = typeof item.playerName === 'string' ? item.playerName.trim() : '';
       return name ? name === targetName : item.snapshots.length === 0;
     });
     return { sources: sources.length ? sources : [current], note: sources.length > 1
-      ? `${sources.length} 段相容記錄；只合併同一玩家手牌與無名的純公開 Log。` : '只有 1 段相容記錄。' };
+      ? l10n("{0} 段相容記錄；只合併同一玩家手牌與無名的純公開 Log。", sources.length) : l10n('只有 1 段相容記錄。') };
   }
 
   function renderSelected() {
@@ -484,12 +487,12 @@
     $('download-review').disabled = !session || exportInProgress;
     $('export-format').disabled = !session || exportInProgress;
     updateExportControls();
-    if (!session) { $('combine-segments').disabled = true; $('merge-status').textContent = '尚無記錄段落。'; workspace?.render(); return; }
+    if (!session) { $('combine-segments').disabled = true; $('merge-status').textContent = l10n('尚無記錄段落。'); workspace?.render(); return; }
     try {
       const compatible = compatibleSessions(session);
       $('combine-segments').disabled = exportInProgress || compatible.sources.length < 2;
       const combine = $('combine-segments').checked && compatible.sources.length > 1;
-      $('merge-status').textContent = (combine ? '合併檢視：' : '單段檢視：') + compatible.note;
+      $('merge-status').textContent = (combine ? l10n('合併檢視：') : l10n('單段檢視：')) + compatible.note;
       if (combine) session = globalThis.MSABattleLogCore.combineSessions(compatible.sources);
       const contextKey = `${selectedId}|${Boolean(session.isCombined)}|${session.playerName || ''}`;
       if (renderedSessionKey && renderedSessionKey !== contextKey) {
@@ -501,7 +504,7 @@
       renderNavigation();
       workspace?.render();
     } catch (error) {
-      failure('無法整理回合報告；仍可選擇 JSON 下載原始資料。', error);
+      failure(l10n('無法整理回合報告；仍可選擇 JSON 下載原始資料。'), error);
       timeline = null;
       groups = [];
       $('review-content').hidden = true;
@@ -516,16 +519,16 @@
       .map(([key, value]) => ({ id: key.slice(PREFIX.length), session: value }))
       .sort((a, b) => (Date.parse(b.session.updatedAt) || 0) - (Date.parse(a.session.updatedAt) || 0));
     if (!sessions.some((entry) => entry.id === selectedId)) {
-      if (selectedId && sessions.length) notice('指定記錄已不存在，現在顯示最近一筆本機記錄。');
+      if (selectedId && sessions.length) notice(l10n('指定記錄已不存在，現在顯示最近一筆本機記錄。'));
       selectedId = sessions[0]?.id || '';
     }
     $('review-session').replaceChildren();
     for (const entry of sessions) {
-      const option = element('option', '', `${dateText(entry.session.startedAt)} · ${entry.session.playerName || '僅公開 Log／玩家未辨識'} · ${(entry.session.gameId || entry.id).slice(0, 12)}`);
+      const option = element('option', '', `${dateText(entry.session.startedAt)} · ${entry.session.playerName || l10n('僅公開 Log／玩家未辨識')} · ${(entry.session.gameId || entry.id).slice(0, 12)}`);
       option.value = entry.id;
       $('review-session').append(option);
     }
-    if (!sessions.length) $('review-session').append(element('option', '', '尚無本機記錄'));
+    if (!sessions.length) $('review-session').append(element('option', '', l10n('尚無本機記錄')));
     $('review-session').value = selectedId;
     $('review-session').disabled = !sessions.length || exportInProgress;
     renderSelected();
@@ -536,17 +539,17 @@
     const sequence = ++loadSequence;
     $('review-content').setAttribute('aria-busy', 'true');
     $('refresh-review').disabled = true;
-    $('refresh-review').textContent = '讀取中…';
+    $('refresh-review').textContent = l10n('讀取中…');
     try {
       const values = await chrome.storage.local.get(null);
       if (sequence !== loadSequence || exportInProgress) return;
       applyData(values);
-    } catch (error) { failure('無法讀取本機記錄，請重新整理後再試。', error); }
+    } catch (error) { failure(l10n('無法讀取本機記錄，請重新整理後再試。'), error); }
     finally {
       if (sequence === loadSequence && !exportInProgress) {
         $('review-content').setAttribute('aria-busy', 'false');
         $('refresh-review').disabled = false;
-        $('refresh-review').textContent = '重新整理';
+        $('refresh-review').textContent = l10n('重新整理');
       }
     }
   }
@@ -556,7 +559,7 @@
   }
 
   function download(contents, extension, mimeType, suffix, current, exportInfo) {
-    if (typeof contents !== 'string') throw new Error('匯出資料格式不正確。');
+    if (typeof contents !== 'string') throw new Error(l10n('匯出資料格式不正確。'));
     const game = String(current.gameId || current.id || 'session').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80);
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const blob = new Blob([contents], { type: mimeType });
@@ -565,7 +568,7 @@
     anchor.href = url; anchor.download = `msa-${suffix}-${game}-${stamp}.${extension}`;
     document.body.append(anchor); anchor.click(); anchor.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    notice(`已發起下載：${(current.snapshots || []).length} 筆手牌快照、${current.battleLog?.events?.length || 0} 筆公開事件，不受搜尋條件影響。${refreshSummary(exportInfo)} ${exportInfo.summaryError ? '回合摘要不可用，原始資料與匯出資訊仍已保留。' : exportInfo.coverage?.publicLogComplete ? '公開 Log 已見起尾。' : '公開 Log 尚未確認整場完整。'} 請到 Chrome 下載項目確認。`, !exportInfo.refresh?.refreshed || exportInfo.refresh?.partial || Boolean(exportInfo.summaryError));
+    notice(l10n("已發起下載：{0} 筆手牌快照、{1} 筆公開事件，不受搜尋條件影響。{2} {3} 請到 Chrome 下載項目確認。", (current.snapshots || []).length, current.battleLog?.events?.length || 0, refreshSummary(exportInfo), exportInfo.summaryError ? l10n('回合摘要不可用，原始資料與匯出資訊仍已保留。') : exportInfo.coverage?.publicLogComplete ? l10n('公開 Log 已見起尾。') : l10n('公開 Log 尚未確認整場完整。')), !exportInfo.refresh?.refreshed || exportInfo.refresh?.partial || Boolean(exportInfo.summaryError));
   }
 
   async function prepareExport(selection) {
@@ -573,11 +576,11 @@
     try {
       const response = await Promise.race([
         chrome.runtime.sendMessage({ type: 'MSA_PREPARE_EXPORT', gameId: selection.gameId, playerName: selection.playerName }),
-        new Promise((resolve) => { timer = setTimeout(() => resolve({ ok: false, refreshed: false, partial: true, reason: '匯出前刷新逾時；只匯出已儲存資料。' }), 35000); })
+        new Promise((resolve) => { timer = setTimeout(() => resolve({ ok: false, refreshed: false, partial: true, reason: l10n('匯出前刷新逾時；只匯出已儲存資料。') }), 35000); })
       ]);
-      return response && typeof response === 'object' ? response : { ok: false, refreshed: false, partial: true, reason: '沒有收到刷新結果。' };
+      return response && typeof response === 'object' ? response : { ok: false, refreshed: false, partial: true, reason: l10n('沒有收到刷新結果。') };
     } catch (error) {
-      return { ok: false, refreshed: false, partial: true, reason: `無法要求刷新：${error.message || '連線失敗'}` };
+      return { ok: false, refreshed: false, partial: true, reason: l10n("無法要求刷新：{0}", error.message || l10n('連線失敗')) };
     } finally { clearTimeout(timer); }
   }
 
@@ -590,17 +593,17 @@
     clearTimeout(reloadTimer);
     for (const id of ['download-review', 'review-session', 'export-format', 'combine-segments', 'refresh-review']) $(id).disabled = true;
     updateExportControls();
-    notice(selection.savedOnly?'正在讀取本機已存資料並建立匯出檔…':'正在刷新對應 MSA 分頁的手牌與公開 Log；完成後會重新讀取本機資料，再建立匯出檔。');
+    notice(selection.savedOnly?l10n('正在讀取本機已存資料並建立匯出檔…'):l10n('正在刷新對應 MSA 分頁的手牌與公開 Log；完成後會重新讀取本機資料，再建立匯出檔。'));
     try {
-      const refresh = selection.savedOnly ? {ok:true,refreshed:false,partial:true,code:'saved-only',reason:'未要求刷新 MSA'} : await prepareExport(selection);
+      const refresh = selection.savedOnly ? {ok:true,refreshed:false,partial:true,code:'saved-only',reason:l10n('未要求刷新 MSA')} : await prepareExport(selection);
       // One storage snapshot after the producer/storage queues finish supplies
       // both the visible report and every byte of this export. Do not re-use
       // the pre-refresh session or silently export another recently saved game.
       const values = await chrome.storage.local.get(null);
       const selectedRecord = values[PREFIX + selection.id];
-      if (!selectedRecord || !Array.isArray(selectedRecord.snapshots)) throw new Error('原選取記錄已不存在，未改匯出其他對局。');
+      if (!selectedRecord || !Array.isArray(selectedRecord.snapshots)) throw new Error(l10n('原選取記錄已不存在，未改匯出其他對局。'));
       if (selectedRecord.gameId !== selection.gameId || (selection.playerName && selectedRecord.playerName && selectedRecord.playerName !== selection.playerName)) {
-        throw new Error('所選記錄的對局或玩家身份已改變，請重新選取後再匯出。');
+        throw new Error(l10n('所選記錄的對局或玩家身份已改變，請重新選取後再匯出。'));
       }
       selectedId = selection.id;
       $('combine-segments').checked = selection.combine;
@@ -611,7 +614,7 @@
       try { exportCoverage = globalThis.MSABattleLogCore.buildTimeline(current).coverage; }
       catch (error) {
         if (selection.format !== 'json') throw error;
-        summaryError = '回合摘要不可用；原始記錄仍保留。' + (error.message ? ` ${error.message}` : '');
+        summaryError = l10n('回合摘要不可用；原始記錄仍保留。') + (error.message ? ` ${globalThis.MSAI18n?.message(error.message)||error.message}` : '');
       }
       const exportInfo = { exportedAt: new Date().toISOString(), storageReadAt: new Date().toISOString(),
         gameId: current.gameId, playerName: current.playerName, selectedSessionId: selection.id,
@@ -638,12 +641,12 @@
           : format === 'combined-csv' ? globalThis.MSABattleLogCore.toCSV(current) : globalThis.MSABattleLogCore.toEventsCSV(current);
         download(csv.startsWith('\uFEFF') ? csv : '\uFEFF' + csv, 'csv', 'text/csv;charset=utf-8', format, current, exportInfo);
       }
-    } catch (error) { failure('未建立匯出檔；請檢查本機記錄後再試。', error); }
+    } catch (error) { failure(l10n('未建立匯出檔；請檢查本機記錄後再試。'), error); }
     finally {
       exportInProgress = false;
       $('export-format').disabled = !session;
       $('refresh-review').disabled = false;
-      $('refresh-review').textContent = '重新整理';
+      $('refresh-review').textContent = l10n('重新整理');
       $('review-content').setAttribute('aria-busy', 'false');
       $('review-session').disabled = !sessions.length;
       $('download-review').disabled = !session;
@@ -673,5 +676,6 @@
     if (exportInProgress) { pendingReload = true; return; }
     clearTimeout(reloadTimer); reloadTimer = setTimeout(loadData, 180);
   });
+  await globalThis.MSAI18n?.mount(document, () => { if (!exportInProgress) { renderSelected(); updateExportControls(); } });
   loadData();
 })();
