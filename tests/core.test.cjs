@@ -76,7 +76,7 @@ test('countCards aggregates duplicates after normalization and ignores unknowns'
 });
 
 test('createSession has the required versioned metadata and no observations', () => {
-  assert.deepEqual(session(), { schemaVersion: 1, recorderVersion: '0.3.0', id: 'session-1', gameId: 'game-1', playerName: 'Demo Player',
+  assert.deepEqual(session(), { schemaVersion: 1, recorderVersion: require('../extension/manifest.json').version, id: 'session-1', gameId: 'game-1', playerName: 'Demo Player',
     startedAt: '2026-10-24T01:00:00.000Z', updatedAt: '2026-10-24T01:00:00.000Z', snapshots: [] });
 });
 

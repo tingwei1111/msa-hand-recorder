@@ -24,7 +24,7 @@ for path in extension_files:
 files = [path for path in extension_files if path.is_file()]
 files += [ROOT / name for name in [
     "README.md", "CHANGELOG.md", "docs/使用教學.md",
-    "docs/images/popup-v0.4.jpg", "docs/images/review-v0.4.jpg"
+    "docs/images/popup-v0.4.jpg", "docs/images/review-v0.4.jpg", "docs/images/live-panel-v0.5.jpg"
 ]]
 for script in manifest["content_scripts"][0]["js"]:
     if not (ROOT / "extension" / script).is_file():

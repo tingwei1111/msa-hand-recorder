@@ -1,12 +1,13 @@
 {
   "name": "msa-hand-recorder",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "Chrome extension for local MSA hand snapshots and public Battle Log review",
   "engines": {"node": ">=22"},
   "scripts": {
     "test": "node --test tests/*.test.cjs",
     "preview:sync": "python3 scripts/sync_previews.py",
+    "preview": "python3 scripts/preview_server.py",
     "package": "python3 scripts/package_release.py"
   }
 }

@@ -31,6 +31,7 @@
   let deleteBusy = false;
   let refreshBusy = false;
   let dataLoaded = false;
+  let panelBusy = false;
   let latestStatus = null;
   const actionLabels = {
     'export-json': '下載 JSON', 'export-csv': '手牌 CSV', 'sync-log': '更新 Log',
@@ -86,6 +87,7 @@
       $(id).disabled = !dataLoaded || settingsBusy || toggleBusy;
     }
     $('session-content').setAttribute('aria-busy', String(recordBusy));
+    $('show-live-panel').disabled = recordBusy || panelBusy;
   }
 
   function setRecordBusy(busy, action) {
@@ -384,6 +386,22 @@
     } catch (error) { reportError('無法完成匯出。', error); }
     finally { await loadData(); setRecordBusy(false); }
   }
+
+  $('show-live-panel').addEventListener('click', async () => {
+    if (panelBusy || exportBusy || deleteBusy || refreshBusy) return;
+    panelBusy = true; updateControls();
+    $('show-live-panel').textContent = '開啟小窗中…';
+    $('show-live-panel').setAttribute('aria-busy', 'true');
+    try {
+      const result = await chrome.runtime.sendMessage({type:'MSA_SHOW_LIVE_PANEL'});
+      showNotice(result?.ok ? '對戰小窗已展開，請關閉這個小視窗，回到 MSA 查看。' : (result?.reason || '無法開啟小窗，請先切到 MSA 對局頁面。'), !result?.ok);
+    } catch (error) { reportError('無法開啟對戰小窗。', error); }
+    finally {
+      panelBusy = false; updateControls();
+      $('show-live-panel').textContent = '顯示對戰側邊小窗 ↗';
+      $('show-live-panel').setAttribute('aria-busy', 'false');
+    }
+  });
 
   $('recording-enabled').addEventListener('change', async (event) => {
     const enabled = event.target.checked;

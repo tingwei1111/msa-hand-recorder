@@ -64,7 +64,7 @@
     var startedAt = timestamp(options.startedAt);
     return {
       schemaVersion: 1,
-      recorderVersion: '0.3.0',
+      recorderVersion: '0.5.0',
       id: text(options.id) || 'msa-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10),
       gameId: text(options.gameId),
       playerName: text(options.playerName),

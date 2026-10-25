@@ -48,6 +48,7 @@ if(previewScenario==='segments'){
 const previewListeners=[];
 window.chrome=window.chrome||{};
 chrome.runtime={getURL(file){return '/demo/'+file.replace('review.html','review-preview.html');},async sendMessage(message){
+ if(message.type==='MSA_SHOW_LIVE_PANEL')return {ok:false,reason:'此頁為合成小視窗預覽；請使用 demo/index.html 測試對戰側邊小窗。'};
  if(message.type==='MSA_PREPARE_EXPORT') {
   await new Promise(resolve=>setTimeout(resolve,500));
   if(previewScenario==='export-success')return {ok:true,refreshed:true,eventCount:previewSession.battleLog?.events?.length||0};

@@ -12,6 +12,7 @@
   --amber: #805311;
 }
 * { box-sizing: border-box; }
+.live-panel-button { width: 100%; margin: 8px 0 2px; }
 body { width: 420px; max-width: 100vw; min-width: 280px; margin: 0; }
 [hidden] { display: none !important; }
 button, input, select { font: inherit; }

@@ -4,23 +4,33 @@ history.replaceState({},'',`/game/${testGame}`);
 const database={'msa.settings':{enabled:true,handSide:'auto',autoCollectLog:false}};const changeListeners=[];
 const captureMessageListeners=[];
 let fixtureCloseDelayMs=0;
+let fixtureWriteFailure=false;
 window.chrome=window.chrome||{};
 chrome.storage={
  local:{
   async get(keys){if(keys===null)return {...database};return Object.fromEntries((Array.isArray(keys)?keys:[keys]).filter(k=>k in database).map(k=>[k,database[k]]));},
   async set(values){const changes={};for(const [key,value] of Object.entries(values)){changes[key]={oldValue:database[key],newValue:value};database[key]=value;}changeListeners.forEach(fn=>fn(changes,'local'));},
   async remove(key){delete database[key];}
- },onChanged:{addListener(fn){changeListeners.push(fn);}}
+ },onChanged:{addListener(fn){changeListeners.push(fn);},removeListener(fn){const index=changeListeners.indexOf(fn);if(index>=0)changeListeners.splice(index,1);}}
 };
-chrome.runtime={onMessage:{addListener(fn){captureMessageListeners.push(fn);}},async sendMessage(msg){
+chrome.runtime={id:'synthetic-extension',onMessage:{addListener(fn){captureMessageListeners.push(fn);}},async sendMessage(msg){
  if(msg.type==='MSA_STATUS'){database.status=msg.status;return {ok:true};}
+ if(msg.type==='MSA_OPEN_LIVE_REVIEW'){
+  const saved=database['msa.session.'+msg.gameId+'.'+msg.runId];
+  if(!saved)return {ok:false,reason:'本段尚無合成記錄'};
+  const url=URL.createObjectURL(new Blob([MSABattleLogCore.toHTML(saved)],{type:'text/html;charset=utf-8'}));
+  window.open(url,'_blank','noopener');setTimeout(()=>URL.revokeObjectURL(url),60000);
+  return {ok:true,opened:true};
+ }
  if(!['MSA_RECORD','MSA_LOG'].includes(msg.type))return {ok:false,error:'Unexpected fixture message'};
  if(database['msa.settings']?.enabled===false)return {ok:true,paused:true};
+ if(fixtureWriteFailure)return {ok:false,error:'合成測試：儲存失敗，尚未寫入本機'};
  const key='msa.session.'+msg.gameId+'.'+msg.runId;
- const base=database[key]||MSARecorderCore.createSession({id:key,gameId:msg.gameId,playerName:msg.playerName});
+ const base=database[key]||MSARecorderCore.createSession({id:msg.gameId+'.'+msg.runId,gameId:msg.gameId,playerName:msg.playerName});
  if(!base.playerName&&msg.playerName)base.playerName=msg.playerName;
- database[key]=msg.type==='MSA_LOG'?MSABattleLogCore.ingest(base,msg.batch):MSARecorderCore.appendSnapshot(base,msg.snapshot);
- return {ok:true,snapshotCount:database[key].snapshots.length,eventCount:database[key].battleLog?.events?.length||0};
+ const saved=msg.type==='MSA_LOG'?MSABattleLogCore.ingest(base,msg.batch):MSARecorderCore.appendSnapshot(base,msg.snapshot);
+ await chrome.storage.local.set({[key]:saved});
+ return {ok:true,id:saved.id,snapshotCount:saved.snapshots.length,eventCount:saved.battleLog?.events?.length||0,coverage:saved.battleLog?.coverage||null};
 }};
 function makeCard(code,ref,back=false){
  const slot=document.createElement('div');slot.className='slot';slot.dataset.layoutId=ref;
@@ -103,6 +113,39 @@ document.getElementById('empty').onclick=()=>setHand([]);
 document.getElementById('reset').onclick=reset;
 document.getElementById('open-log').onclick=()=>openLog(sampleLogRows);
 document.getElementById('close-log').onclick=closeLog;
+if(document.getElementById('show-live')){
+ document.getElementById('show-live').onclick=()=>captureMessageListeners[0]?.({type:'MSA_LIVE_PANEL_SHOW'},{id:chrome.runtime.id},()=>{});
+ document.getElementById('unreadable').onclick=()=>setHand(['back']);
+ document.getElementById('token-log').onclick=()=>openLog([...sampleLogRows,{text:'Parts deployed',actor:'測試玩家',cards:[{cardCode:'T-021',name:'Parts'}]}]);
+ document.getElementById('write-error').onclick=()=>{
+  fixtureWriteFailure=!fixtureWriteFailure;
+  document.getElementById('write-error').textContent=fixtureWriteFailure?'恢復儲存':'模擬儲存失敗';
+  if(fixtureWriteFailure)setHand(['ST04-010','GD04-068']);
+ };
+ document.getElementById('pause-recording').onclick=async()=>{
+  const enabled=database['msa.settings'].enabled===false;
+  await chrome.storage.local.set({'msa.settings':{enabled,handSide:'auto',autoCollectLog:false}});
+  document.getElementById('pause-recording').textContent=enabled?'暫停記錄':'恢復記錄';
+ };
+ document.getElementById('new-game').onclick=()=>{
+  closeLog();setHand([]);
+  const next=gameIdFromLocation()===testGame?'00000000-0000-4000-8000-000000000002':testGame;
+  history.replaceState({},'',`/game/${next}`);
+ };
+ document.getElementById('leave-game').onclick=()=>{
+  const onGame=location.pathname.startsWith('/game/');
+  history.replaceState({},'',onGame?'/':`/game/${testGame}`);
+  document.getElementById('leave-game').textContent=onGame?'回到對局':'離開對局';
+  if(!onGame)reset();
+ };
+ document.getElementById('other-dialog').onclick=()=>{
+  closeLog();const dialog=document.createElement('section');dialog.setAttribute('role','dialog');dialog.setAttribute('aria-label','合成遊戲確認視窗');
+  dialog.style.cssText='position:fixed;inset:15% 15%;padding:30px;background:#f5f6f2;color:#17313b;border:2px solid #087f75;z-index:2000;border-radius:12px;';
+  const title=document.createElement('h2');title.textContent='合成遊戲確認視窗';
+  const note=document.createElement('p');note.textContent='對戰小窗應暫時隱藏，讓玩家處理此視窗。';
+  const close=document.createElement('button');close.textContent='關閉測試視窗';close.onclick=()=>dialog.remove();dialog.append(title,note,close);document.body.append(dialog);
+ };
+}
 document.getElementById('run-tests').onclick=async()=>{
  const button=document.getElementById('run-tests');button.disabled=true;
  const results=document.getElementById('results');results.replaceChildren();

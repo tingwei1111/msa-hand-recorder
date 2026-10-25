@@ -12,8 +12,8 @@ const runId='11111111-1111-4111-8111-111111111111';
 function harness(fail=false,options={}){
  const db={};let listener;
  const context=vm.createContext({MSARecorderCore:core,MSABattleLogCore:logCore,URL,Map,Promise,Date,JSON,setTimeout,clearTimeout,importScripts(){},chrome:{
-  runtime:{id:'test-extension',onMessage:{addListener(fn){listener=fn;}}},
-  tabs:{query:options.query || (async()=>[{id:7,active:true}]),sendMessage:options.capture || (async()=>{throw new Error('Receiving end does not exist');})},storage:{local:{
+  runtime:{id:'test-extension',getURL:file=>'chrome-extension://test-extension/'+file,onMessage:{addListener(fn){listener=fn;}}},
+  tabs:{query:options.query || (async()=>[{id:7,active:true}]),create:options.create || (async()=>({id:99})),sendMessage:options.capture || (async()=>{throw new Error('Receiving end does not exist');})},storage:{local:{
    async get(keys){await Promise.resolve();const list=keys===null?Object.keys(db):Array.isArray(keys)?keys:[keys];return structuredClone(Object.fromEntries(list.filter(k=>k in db).map(k=>[k,db[k]])));},
    async set(values){if(fail)throw new Error('QUOTA_BYTES');await options.beforeSet?.(values);await Promise.resolve();Object.assign(db,structuredClone(values));}
   }}
@@ -151,4 +151,47 @@ test('prepare surfaces persisted capture issues even when the public log refresh
  const h=harness(false,{capture:async()=>({refreshed:true,partial:false,gameId,reason:'captured'})});await h.send(record());
  await h.send({type:'MSA_CAPTURE_GAP',gameId,runId,issue:{pendingCount:2}});
  const result=await h.send(prepare,extension);assert.equal(result.refreshed,true);assert.equal(result.partial,true);assert.equal(result.captureIssues.length,1);
+});
+
+test('popup opens the live panel only in the current active tab without broadening access',async()=>{
+ const queries=[],messages=[];
+ const h=harness(false,{query:async value=>{queries.push(value);return [{id:7}];},capture:async(id,message,options)=>{
+  messages.push({id,message,options});return {ok:true,opened:true,gameId};
+ }});
+ const result=await h.send({type:'MSA_SHOW_LIVE_PANEL'},extension);
+ assert.equal(result.opened,true);
+ assert.deepEqual(JSON.parse(JSON.stringify(queries)),[{active:true,currentWindow:true}]);
+ assert.equal(messages[0].id,7);assert.equal(messages[0].message.type,'MSA_LIVE_PANEL_SHOW');
+ assert.equal(messages[0].options.frameId,0);
+ const untrusted=await h.send({type:'MSA_SHOW_LIVE_PANEL'});
+ assert.equal(untrusted.ok,false);assert.equal(messages.length,1);
+});
+
+test('live panel entry reports a missing receiver or non-game response',async()=>{
+ const missing=harness();assert.equal((await missing.send({type:'MSA_SHOW_LIVE_PANEL'},extension)).ok,false);
+ const wrong=harness(false,{capture:async()=>({ok:true,opened:true,gameId:'not-a-game'})});
+ assert.equal((await wrong.send({type:'MSA_SHOW_LIVE_PANEL'},extension)).ok,false);
+});
+
+test('live review opens only the exact saved current-run record owned by the sender document',async()=>{
+ const opened=[];const h=harness(false,{create:async options=>{opened.push(options);return {id:99};}});
+ await h.send(record());
+ const message={type:'MSA_OPEN_LIVE_REVIEW',gameId,runId,playerName:'測試玩家'};
+ const result=await h.send(message);
+ assert.equal(result.ok,true);assert.equal(result.sessionId,gameId+'.'+runId);
+ assert.equal(opened[0].url,'chrome-extension://test-extension/review.html?id='+gameId+'.'+runId);
+ const spoof={tab:{id:8},frameId:0,documentId:'doc-other',url:`https://mobilesuitarena.com/game/${gameId}`};
+ assert.equal((await h.send(message,spoof)).ok,false);
+ assert.equal((await h.send({...message,playerName:'另一玩家'})).ok,false);
+ assert.equal((await h.send({...message,runId:'22222222-2222-4222-8222-222222222222'})).ok,false);
+ assert.equal(opened.length,1);
+});
+
+test('live review rejects other origins, child frames and a mismatching page game',async()=>{
+ const opened=[];const h=harness(false,{create:async options=>opened.push(options)});await h.send(record());
+ const message={type:'MSA_OPEN_LIVE_REVIEW',gameId,runId};
+ assert.equal((await h.send(message,{tab:{id:7},frameId:0,url:'https://other.test/'})).ok,false);
+ assert.equal((await h.send(message,{tab:{id:7},frameId:1,url:`https://mobilesuitarena.com/game/${gameId}`})).ok,false);
+ assert.equal((await h.send({...message,gameId:'33333333-3333-4333-8333-333333333333'})).ok,false);
+ assert.equal(opened.length,0);
 });

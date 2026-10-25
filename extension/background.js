@@ -36,6 +36,31 @@ async function waitForGameWrites(gameId) {
   }
 }
 const partial = (gameId, code, reason, extra = {}) => ({ok:true, refreshed:false, partial:true, gameId, code, reason, ...extra});
+async function showLivePanel() {
+  const tabs = await chrome.tabs.query({active:true,currentWindow:true});
+  if (!tabs[0]?.id) return {ok:false,reason:'請先切換到 MSA 對局頁面。'};
+  try {
+    const result = await timeout(chrome.tabs.sendMessage(tabs[0].id, {type:'MSA_LIVE_PANEL_SHOW'}, {frameId:0}), 5000);
+    if (!result?.ok || !result.opened || !UUID.test(result.gameId || '')) return {ok:false,reason:result?.reason || '目前分頁沒有可開啟的對戰小窗。'};
+    return {ok:true,opened:true,gameId:result.gameId};
+  } catch (_) { return {ok:false,reason:'請先切到 MSA 對局頁；更新擴充功能後，請重新整理該分頁。'}; }
+}
+async function openLiveReview(message, sender) {
+  const {gameId,runId} = message;
+  if (!UUID.test(gameId || '') || !UUID.test(runId || '') || new URL(sender.url).pathname.split('/')[2] !== gameId) {
+    return {ok:false,reason:'對局頁面或記錄段落不符。'};
+  }
+  const id = `${gameId}.${runId}`, key = `msa.session.${id}`;
+  const values = await chrome.storage.local.get(key);
+  const session = values[key], source = session?.captureSource;
+  if (!session || session.id !== id || session.gameId !== gameId || !source ||
+      source.tabId !== sender.tab.id || source.documentId !== sender.documentId ||
+      (message.playerName && session.playerName && message.playerName !== session.playerName)) {
+    return {ok:false,reason:'本段尚無可確認來源的已存記錄，請稍後再試。'};
+  }
+  await chrome.tabs.create({url:chrome.runtime.getURL('review.html') + '?id=' + encodeURIComponent(id)});
+  return {ok:true,opened:true,sessionId:id};
+}
 async function prepareExport(message) {
   const gameId = message.gameId;
   const playerName = String(message.playerName || '').trim();
@@ -81,6 +106,16 @@ async function prepareExport(message) {
   return partial(gameId, last?.code || 'capture-failed', last?.reason || '無法更新公開 Log', {attempts, preparedAt:new Date().toISOString()});
 }
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
+  if (message?.type === 'MSA_SHOW_LIVE_PANEL') {
+    if (!extensionSender(sender)) { respond({ok:false,reason:'不允許的小窗操作來源。'}); return false; }
+    showLivePanel().then(respond, error => respond({ok:false,reason:String(error.message || error)}));
+    return true;
+  }
+  if (message?.type === 'MSA_OPEN_LIVE_REVIEW') {
+    if (!trusted(sender)) { respond({ok:false,reason:'不允許的對戰來源。'}); return false; }
+    openLiveReview(message,sender).then(respond, error => respond({ok:false,reason:String(error.message || error)}));
+    return true;
+  }
   if (message?.type === 'MSA_PREPARE_EXPORT') {
     if (!extensionSender(sender)) { respond({ok:false, refreshed:false, partial:true, reason:'不允許的匯出來源'}); return false; }
     const key = `${message.gameId}|${String(message.playerName || '').trim()}`;

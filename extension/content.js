@@ -3,10 +3,41 @@
   const defaults = {enabled:true,playerName:'',handSide:'auto',autoCollectLog:true};
   let settings = {...defaults}, ready = false, current = null, sampling = false;
   let badge, badgeText, interactionVersion = 0, lastInteractionAt = 0, pointerDown = false, activeCapture = null;
+  let livePanelController = null;
   const contexts = new Map();
   const gameId = () => location.pathname.match(/^\/game\/([a-f0-9-]{36})(?:\/|$)/i)?.[1] || null;
   const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
   const sameContext = ctx => current === ctx && gameId() === ctx.gameId;
+  function syncLivePanel() {
+    if (!ready || !globalThis.MSALivePanelController || !globalThis.MSALivePanelCore || !globalThis.MSALivePanelUI) return false;
+    try {
+      if (!livePanelController) livePanelController = MSALivePanelController.create({
+        storage:chrome.storage,
+        getContext:() => current && sameContext(current) ? {
+          gameId:current.gameId,runId:current.runId,playerName:current.playerName,
+          enabled:settings.enabled,pendingCount:current.writer.state().pendingCount,
+          writeError:current.writeError || (current.connectionError ? '記錄器連線中斷，請重新整理此頁' : ''),
+          captureNote:current.captureNote,statusMessage:current.statusMessage || '',quality:current.lastQuality
+        } : null,
+        project:MSALivePanelCore.project,
+        createUI:MSALivePanelUI.create,
+        onCapture:async requested => {
+          const ctx = current;
+          if (!ctx || !sameContext(ctx) || ctx.runId !== requested.runId) return {ok:false,refreshed:false,reason:'對局已切換。'};
+          // An explicit panel click is still trusted player input. Wait for the
+          // normal idle guard instead of bypassing input/dialog protections.
+          await sleep(900);
+          if (!sameContext(ctx) || ctx.runId !== requested.runId || ctx.playerName !== requested.playerName) return {ok:false,refreshed:false,reason:'對局或玩家已切換，請重新操作。'};
+          return requestCapture(ctx,{reason:'live-panel',playerName:ctx.playerName});
+        },
+        onReview:requested => chrome.runtime.sendMessage({type:'MSA_OPEN_LIVE_REVIEW',
+          gameId:requested.gameId,runId:requested.runId,playerName:requested.playerName})
+      });
+      livePanelController.sync();
+      badge?.remove();
+      return true;
+    } catch (_) { return false; }
+  }
   function mountBadge() {
     if (badge?.isConnected) return;
     badge = document.createElement('div'); badge.id = 'msa-hand-recorder-indicator';
@@ -20,9 +51,14 @@
     const text = `${message} · Log ${ctx.eventCount} 筆${pending ? ` · 待存 ${pending} 筆` : ''}${ctx.writeError ? ` · 儲存失敗：${ctx.writeError}` : ''}${ctx.captureNote ? ` · ${ctx.captureNote}` : ''}`;
     const signature = `${text}|${quality}|${ctx.playerName}`;
     if (signature === ctx.statusSignature) return;
-    ctx.statusSignature = signature; mountBadge(); badgeText.textContent = `🃏 ${text}`;
+    ctx.statusSignature = signature; ctx.statusMessage = text;
+    if (!syncLivePanel()) { mountBadge(); badgeText.textContent = `🃏 ${text}`; }
     chrome.runtime.sendMessage({type:'MSA_STATUS',status:{message:text,quality,gameId:ctx.gameId,playerName:ctx.playerName}})
-      .catch(() => { if (sameContext(ctx)) badgeText.textContent = '🃏 記錄器連線中斷，請重新整理此頁'; });
+      .catch(() => {
+        if (!sameContext(ctx)) return;
+        ctx.connectionError = true;
+        if (!syncLivePanel()) { mountBadge(); badgeText.textContent = '🃏 記錄器連線中斷，請重新整理此頁'; }
+      });
   }
   const createWriter = () => MSACaptureCoordinator.createWriteQueue({
     write: payload => chrome.runtime.sendMessage(payload),
@@ -31,7 +67,7 @@
       ctx.snapshotCount = result.snapshotCount || 0; ctx.eventCount = result.eventCount || 0;
       if (result.coverage) ctx.coverage = result.coverage;
       if (result.id) ctx.sessionIds.add(result.id);
-      ctx.writeError = ''; publish(ctx, `已保存 ${ctx.snapshotCount} 筆手牌`);
+      ctx.writeError = ''; ctx.connectionError = false; publish(ctx, `已保存 ${ctx.snapshotCount} 筆手牌`);
       if (ctx.rejectedCount > ctx.persistedRejectedCount && !ctx.persistingGap) persistOverflow(ctx);
     },
     onError(payload,error) {
@@ -52,7 +88,7 @@
           .catch(() => { if (current) { current.captureNote = '舊段暫存缺口未能寫入，請保留此頁'; publish(current,'記錄有缺口'); } });
       }
     }
-    if (!id) { current = null; badge?.remove(); return null; }
+    if (!id) { current = null; badge?.remove(); livePanelController?.sync(); return null; }
     const ctx = {gameId:id,runId:crypto.randomUUID(),lockedSide:null,observedTurn:0,activeSide:null,anchor:null,lastLogTurn:null,
       handSignature:'',logSignature:'',lastLogScan:0,started:false,endedAt:null,handEnded:false,playerName:'',
       snapshotCount:0,eventCount:0,lastQuality:'unavailable',sessionIds:new Set(),coverage:null,statusSignature:'',
@@ -263,6 +299,16 @@
   }
   for (const name of ['pointerdown','pointerup','pointercancel','keydown','input','wheel']) document.addEventListener(name,interacted,{capture:true,passive:true});
   chrome.runtime.onMessage.addListener((message,sender,respond) => {
+    if (message?.type === 'MSA_LIVE_PANEL_SHOW') {
+      if (!chrome.runtime.id || sender?.id !== chrome.runtime.id) return false;
+      const id = gameId();
+      if (!id || (message.gameId && message.gameId !== id)) { respond({ok:false,reason:'請先切換到 MSA 對局頁面。'}); return false; }
+      if (!ready) { respond({ok:false,reason:'記錄器設定載入中，請稍後再試。'}); return false; }
+      if (current?.gameId !== id) reset(id);
+      if (!syncLivePanel()) { respond({ok:false,reason:'小窗模組尚未載入，請在更新後重新整理 MSA 分頁。'}); return false; }
+      respond(livePanelController.show());
+      return false;
+    }
     if (message?.type !== 'MSA_CAPTURE_NOW') return false;
     if (sender?.id && chrome.runtime.id && sender.id !== chrome.runtime.id) return false;
     if (!ready) { respond({ok:true,refreshed:false,partial:true,gameId:gameId(),code:'settings-loading',reason:'記錄器設定載入中，請稍後重試'}); return false; }
