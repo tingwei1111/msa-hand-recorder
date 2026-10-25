@@ -20,4 +20,5 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - run: npm test
+      - run: python3 scripts/sync_previews.py --check
       - run: npm run package

@@ -19,7 +19,7 @@ const previewRows=[
  {text:'Game ended!',actor:'',cards:[]}
 ].map((row,sourceIndex)=>({...row,sourceIndex}));
 previewSession=MSABattleLogCore.ingest(previewSession,{observedAt:'2026-10-24T03:04:00Z',rows:previewRows,players:['測試玩家','測試對手'],order:'oldest-first',completeFromStart:true,ended:true});
-const previewStorage={'msa.session.demo-only':previewSession,'msa.status.demo':{updatedAt:'2026-10-24T03:04:00Z',message:'介面預覽：全部為測試資料，並非實際對局',playerName:'測試玩家',quality:'complete'}};
+const previewStorage={'msa.session.demo-only':previewSession,'msa.status.demo':{updatedAt:new Date().toISOString(),gameId:previewGame,message:'介面預覽：已儲存合成手牌觀察，並非實際對局',playerName:'測試玩家',quality:'complete'}};
 const previewScenario=new URLSearchParams(location.search).get('scenario');
 if(previewScenario==='segments'){
  const first=structuredClone(previewSession);first.id='demo-part-1';first.snapshots=first.snapshots.slice(0,2);delete first.battleLog;
@@ -31,11 +31,35 @@ if(previewScenario==='segments'){
  previewSession.snapshots=[];previewSession.playerName='';
 }else if(previewScenario==='unknown'){
  delete previewSession.battleLog;previewSession.snapshots=previewSession.snapshots.slice(0,2).map(s=>({...s,turn:null,turnSource:'phase-observed',observedTurn:1}));
+}else if(previewScenario==='empty'){
+ delete previewStorage['msa.session.demo-only'];delete previewStorage['msa.status.demo'];
+}else if(previewScenario==='no-log'){
+ delete previewSession.battleLog;
+}else if(previewScenario==='partial'){
+ const last=previewSession.snapshots.at(-1);last.quality='partial';last.expectedCount=4;last.unknownCount=1;last.reason='card-back-or-unreadable';
+ previewStorage['msa.status.demo'].quality='partial';previewStorage['msa.status.demo'].message='部分卡牌尚未辨識，已保留已知觀察。';
+}else if(previewScenario==='paused'){
+ previewStorage['msa.settings']={enabled:false,handSide:'auto',autoCollectLog:true};
+}else if(previewScenario==='save-error'){
+ previewStorage['msa.status.demo'].quality='unavailable';previewStorage['msa.status.demo'].message='資料未儲存：invalid record format';
+}else if(previewScenario==='long'){
+ previewSession.playerName='合成示範玩家名稱很長時仍應完整保留並且可以閱讀';
 }
 const previewListeners=[];
 window.chrome=window.chrome||{};
 chrome.runtime={getURL(file){return '/demo/'+file.replace('review.html','review-preview.html');},async sendMessage(message){
- if(message.type==='MSA_PREPARE_EXPORT') return {ok:true,refreshed:false,reason:'此頁為合成資料預覽，沒有連線到 MSA'};
+ if(message.type==='MSA_PREPARE_EXPORT') {
+  await new Promise(resolve=>setTimeout(resolve,500));
+  if(previewScenario==='export-success')return {ok:true,refreshed:true,eventCount:previewSession.battleLog?.events?.length||0};
+  return {ok:true,refreshed:false,reason:'此頁為合成資料預覽，沒有連線到 MSA'};
+ }
  return {ok:false,reason:'非測試訊息'};
 }};
-chrome.storage={local:{async get(){return {...previewStorage};},async set(values){const changes={};for(const[k,v]of Object.entries(values)){changes[k]={oldValue:previewStorage[k],newValue:v};previewStorage[k]=v;}previewListeners.forEach(fn=>fn(changes,'local'));},async remove(key){const oldValue=previewStorage[key];delete previewStorage[key];previewListeners.forEach(fn=>fn({[key]:{oldValue}},'local'));}},onChanged:{addListener(fn){previewListeners.push(fn);}}};
+chrome.storage={local:{async get(keys){
+ if(previewScenario==='storage-error')throw new Error('合成測試：無法讀取本機儲存空間');
+ if(keys==null)return {...previewStorage};
+ return Object.fromEntries((Array.isArray(keys)?keys:[keys]).filter(key=>key in previewStorage).map(key=>[key,previewStorage[key]]));
+},async set(values){
+ if(previewScenario==='settings-error')throw new Error('合成測試：設定儲存失敗');
+ const changes={};for(const[k,v]of Object.entries(values)){changes[k]={oldValue:previewStorage[k],newValue:v};previewStorage[k]=v;}previewListeners.forEach(fn=>fn(changes,'local'));
+},async remove(key){const oldValue=previewStorage[key];delete previewStorage[key];previewListeners.forEach(fn=>fn({[key]:{oldValue}},'local'));}},onChanged:{addListener(fn){previewListeners.push(fn);}}};

@@ -6,12 +6,15 @@
   const SETTINGS_KEY = 'msa.settings';
   const defaults = { enabled: true, playerName: '', handSide: 'auto', autoCollectLog: true };
   const $ = (id) => document.getElementById(id);
-  const qualityLabels = { complete: '完整', partial: '部分辨識', unavailable: '無法辨識' };
+  const qualityLabels = { complete: '辨識完整', partial: '部分辨識', unavailable: '無法辨識' };
   const reasonLabels = {
     'visible-hand-dom-slots': '依可見手牌欄位辨識，請與自己的實際手牌張數核對。',
     'visible-hand-counter': '已與畫面上的手牌張數標記核對。',
     'layout-transition': '畫面正在變動，手牌欄位與張數尚未一致。',
-    'card-back-or-unreadable': '部分牌仍是背面，或目前無法辨識卡號。'
+    'card-back-or-unreadable': '部分牌仍是背面，或目前無法辨識卡號。',
+    'animation-observed': '畫面動畫中的觀察；張數可能仍在變動，請核對之後的快照。',
+    'hand-container-missing': '這次未找到手牌欄位，不能視為沒有手牌。',
+    'game-ended': '對局結束時觀察到的手牌。'
   };
   const dateFormatter = new Intl.DateTimeFormat('zh-TW', {
     month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
@@ -23,6 +26,16 @@
   let reloadTimer;
   let loadSequence = 0;
   let exportBusy = false;
+  let settingsBusy = false;
+  let toggleBusy = false;
+  let deleteBusy = false;
+  let refreshBusy = false;
+  let dataLoaded = false;
+  let latestStatus = null;
+  const actionLabels = {
+    'export-json': '下載 JSON', 'export-csv': '手牌 CSV', 'sync-log': '更新 Log',
+    'delete-session': '刪除此段紀錄', 'open-review': '開啟對局回顧', 'refresh': '重新整理'
+  };
 
   function timeValue(value) {
     const timestamp = typeof value === 'number' ? value : Date.parse(value);
@@ -39,6 +52,8 @@
   }
 
   function showNotice(message, error = false) {
+    $('notice').setAttribute('role', error ? 'alert' : 'status');
+    $('notice').setAttribute('aria-live', error ? 'assertive' : 'polite');
     $('notice').textContent = message;
     $('notice').className = error ? 'notice error' : 'notice';
     $('notice').hidden = !message;
@@ -53,6 +68,35 @@
     return sessions.find((entry) => entry.key === selectedKey)?.session || null;
   }
 
+  function sessionLabel(session) {
+    return [session.playerName || '公開紀錄', String(session.gameId || session.id || '').slice(0, 8)].filter(Boolean).join(' · ');
+  }
+
+  function updateControls() {
+    const recordBusy = exportBusy || deleteBusy || refreshBusy;
+    const available = Boolean(selectedSession());
+    for (const id of ['export-json', 'export-csv', 'sync-log', 'delete-session', 'open-review']) {
+      $(id).disabled = recordBusy || !available || (id === 'export-csv' && typeof globalThis.MSARecorderCore?.toCSV !== 'function');
+    }
+    $('session-select').disabled = recordBusy || sessions.length === 0;
+    $('refresh').disabled = recordBusy || refreshBusy;
+    $('recording-enabled').disabled = !dataLoaded || recordBusy || toggleBusy || settingsBusy;
+    $('save-settings').disabled = !dataLoaded || recordBusy || settingsBusy || toggleBusy;
+    for (const id of ['player-name', 'hand-side', 'auto-collect-log']) {
+      $(id).disabled = !dataLoaded || settingsBusy || toggleBusy;
+    }
+    $('session-content').setAttribute('aria-busy', String(recordBusy));
+  }
+
+  function setRecordBusy(busy, action) {
+    exportBusy = busy;
+    for (const [id, label] of Object.entries(actionLabels)) {
+      $(id).textContent = busy && id === action ? (id === 'sync-log' ? '更新中…' : '準備下載…') : label;
+      $(id).setAttribute('aria-busy', String(busy && id === action));
+    }
+    updateControls();
+  }
+
   function sideHelp() {
     $('side-help').textContent = $('hand-side').value === 'auto'
       ? '自動僅辨識下方本人手牌；旁觀或舊對局只能收錄公開 Log。'
@@ -61,18 +105,44 @@
 
   function renderSettings() {
     $('recording-enabled').checked = settings.enabled;
-    $('recording-label').textContent = settings.enabled ? '自動記錄已啟用' : '記錄已暫停';
-    $('toggle-label').textContent = settings.enabled ? '啟用中' : '已暫停';
-    $('status-dot').className = settings.enabled ? 'status-dot enabled' : 'status-dot';
+    $('toggle-label').textContent = settings.enabled ? '自動記錄' : '已暫停';
     if (!formDirty) {
       $('player-name').value = settings.playerName;
       $('hand-side').value = settings.handSide;
       $('auto-collect-log').checked = settings.autoCollectLog;
       sideHelp();
     }
+    updateControls();
   }
 
   function renderStatus(status) {
+    const savedHands = sessions.reduce((total, entry) => total + entry.session.snapshots.length, 0);
+    const savedEvents = sessions.reduce((total, entry) => total + (entry.session.battleLog?.events?.length || 0), 0);
+    const hasSaved = savedHands + savedEvents > 0;
+    const message = typeof status?.message === 'string' ? status.message : '';
+    const reportedError = /失敗|中斷|暫存已滿|未能|未儲存|無法讀取|缺口|invalid record|\berror\b/i.test(message);
+    const needsCheck = status?.quality === 'partial' || status?.quality === 'unavailable';
+    let label, summary, tone = '';
+    if (!settings.enabled) {
+      label = '新觀察已暫停';
+      summary = hasSaved ? '已儲存的資料仍可回顧與備份。' : '啟用後，請在開局前重新整理 MSA 分頁。';
+    } else if (reportedError) {
+      label = '最近分頁需要處理'; tone = 'error';
+      summary = hasSaved ? '已有本機資料；最近分頁回報異常，請展開核對。' : '尚未確認資料存妥，請展開查看分頁回報。';
+    } else if (needsCheck) {
+      label = hasSaved ? '最近分頁待確認' : '等待可確認的資料'; tone = 'warning';
+      summary = hasSaved ? '已有本機資料；最近分頁的手牌辨識尚未完整。' : '開關已啟用；收到並儲存觀察後，這裡才會顯示紀錄。';
+    } else if (hasSaved) {
+      label = '已有本機紀錄'; tone = 'saved';
+      summary = `已存 ${savedHands} 筆手牌觀察、${savedEvents} 筆公開事件。`;
+    } else {
+      label = status ? '等待資料存妥' : '等待 MSA 分頁';
+      summary = '開關已啟用；請在開局前重新整理對局分頁。';
+    }
+    $('recording-label').textContent = label;
+    $('status-summary').textContent = summary;
+    $('status-dot').className = `status-dot${tone ? ' ' + tone : ''}`;
+    $('status-details').classList.toggle('needs-attention', reportedError);
     $('status-message').textContent = status && typeof status.message === 'string'
       ? status.message
       : '尚未收到 MSA 分頁狀態。請在對局前重新整理 MSA 分頁。';
@@ -117,6 +187,7 @@
     $('empty-state').hidden = sessions.length > 0;
     $('session-content').hidden = sessions.length === 0;
     renderSession();
+    updateControls();
   }
 
   function renderSession() {
@@ -124,7 +195,8 @@
     if (!session) return;
     const snapshots = session.snapshots;
     const snapshot = snapshots[snapshots.length - 1];
-    $('session-meta').textContent = `對局 ${session.gameId || '未知'} · ${session.playerName || '玩家未辨識'}`;
+    $('session-meta').textContent = `最後儲存 ${dateText(session.updatedAt || session.startedAt)} · 此段紀錄`;
+    $('session-meta').title = `對局 ${session.gameId || '未知'} · ${session.playerName || '玩家未辨識'}`;
     $('snapshot-count').textContent = String(snapshots.length);
     $('complete-count').textContent = String(snapshots.filter((item) => item?.quality === 'complete').length);
     $('turn-count').textContent = '—';
@@ -164,7 +236,8 @@
     }
     $('log-coverage').textContent = label;
     $('log-coverage').className = `badge ${quality}`;
-    $('log-counts').textContent = `公開事件 ${events.length} 筆 · 出牌紀錄 ${plays.length} 筆`;
+    $('public-event-count').textContent = String(events.length);
+    $('log-counts').textContent = `公開出牌 ${plays.length} 次`;
     const range = Number.isInteger(coverage.firstTurn) && Number.isInteger(coverage.lastTurn)
       ? `已見 T${coverage.firstTurn}–T${coverage.lastTurn}。` : '';
     $('log-note').textContent = range + (coverage.publicLogComplete
@@ -234,6 +307,7 @@
     try {
       const stored = await chrome.storage.local.get(null);
       if (sequence !== loadSequence) return;
+      dataLoaded = true;
       const savedSettings = stored[SETTINGS_KEY] || {};
       settings = {
         enabled: savedSettings.enabled !== false,
@@ -249,12 +323,23 @@
         .filter(([key, value]) => key.startsWith(STATUS_PREFIX) && value && typeof value === 'object')
         .map(([, value]) => value)
         .sort((a, b) => timeValue(b.updatedAt) - timeValue(a.updatedAt));
+      latestStatus = statuses[0] || null;
       renderSettings();
-      renderStatus(statuses[0]);
+      renderStatus(latestStatus);
       renderSessions();
+      return true;
     } catch (error) {
       reportError('無法讀取本機記錄。請重新開啟擴充功能後再試。', error);
       $('recording-label').textContent = '資料讀取失敗';
+      $('status-summary').textContent = '目前無法確認本機資料，請重新整理後再試。';
+      $('status-dot').className = 'status-dot error';
+      if (!dataLoaded) {
+        const option = document.createElement('option');
+        option.textContent = '無法載入本機紀錄';
+        $('session-select').replaceChildren(option);
+      }
+      updateControls();
+      return false;
     }
   }
 
@@ -278,7 +363,7 @@
     const selected = selectedSession();
     const key = selectedKey;
     if (!selected) throw new Error('請先選擇一筆對局。');
-    showNotice('正在更新這場 Battle Log，並等待手牌儲存完成…');
+    showNotice(`正在更新「${sessionLabel(selected)}」的 Log，並等待手牌儲存完成…`);
     let refresh;
     try {
       refresh = await chrome.runtime.sendMessage({type:'MSA_PREPARE_EXPORT',gameId:selected.gameId,playerName:selected.playerName});
@@ -288,33 +373,34 @@
     return {session: {...values[key], exportInfo:{exportedAt:new Date().toISOString(),scope:'single-segment',refresh}}, refresh};
   }
 
-  async function withPreparedSession(action) {
+  async function withPreparedSession(action, trigger) {
     if (exportBusy) return;
-    exportBusy = true;
-    const controls = ['export-json','export-csv','sync-log','delete-session','session-select'];
-    controls.forEach(id => { $(id).disabled = true; });
+    setRecordBusy(true, trigger);
     try {
       const prepared = await prepareExport();
       await action(prepared.session);
       const suffix = prepared.refresh?.refreshed ? (prepared.refresh.partial ? `已更新 Log，但仍有待確認資料：${prepared.refresh.reason || '請查看涵蓋狀態'}。` : '已更新公開 Log。') : `本次未能更新 Log：${prepared.refresh?.reason || '對局分頁未回應'}。`;
-      showNotice(suffix + ' 本段匯出已發起；整場相容段落請使用回顧頁匯出。', !prepared.refresh?.refreshed || prepared.refresh?.partial);
+      showNotice(`${sessionLabel(prepared.session)}：${suffix} 本段匯出已發起；整場相容段落請使用回顧頁匯出。`, !prepared.refresh?.refreshed || prepared.refresh?.partial);
     } catch (error) { reportError('無法完成匯出。', error); }
-    finally { exportBusy=false; controls.forEach(id => { $(id).disabled = false; }); await loadData(); }
+    finally { await loadData(); setRecordBusy(false); }
   }
 
   $('recording-enabled').addEventListener('change', async (event) => {
     const enabled = event.target.checked;
-    event.target.disabled = true;
+    toggleBusy = true;
+    updateControls();
     try {
       await chrome.storage.local.set({ [SETTINGS_KEY]: { ...settings, enabled } });
       settings.enabled = enabled;
       renderSettings();
+      renderStatus(latestStatus);
       showNotice(enabled ? '自動記錄已啟用。請確認 MSA 分頁狀態。' : '已暫停新記錄；既有資料仍保留在本機。');
     } catch (error) {
       renderSettings();
       reportError('無法變更記錄狀態。', error);
     } finally {
-      event.target.disabled = false;
+      toggleBusy = false;
+      updateControls();
     }
   });
 
@@ -323,7 +409,11 @@
   $('auto-collect-log').addEventListener('change', () => { formDirty = true; });
   $('settings-form').addEventListener('submit', async (event) => {
     event.preventDefault();
-    $('save-settings').disabled = true;
+    if (settingsBusy || toggleBusy || exportBusy || deleteBusy || refreshBusy || !dataLoaded) return;
+    settingsBusy = true;
+    $('save-settings').textContent = '儲存中…';
+    $('settings-form').setAttribute('aria-busy', 'true');
+    updateControls();
     const updated = { ...settings, playerName: $('player-name').value.trim(), handSide: $('hand-side').value,
       autoCollectLog: $('auto-collect-log').checked };
     try {
@@ -335,55 +425,82 @@
     } catch (error) {
       reportError('設定未儲存，請再試一次。', error);
     } finally {
-      $('save-settings').disabled = false;
+      settingsBusy = false;
+      $('save-settings').textContent = '儲存設定';
+      $('settings-form').setAttribute('aria-busy', 'false');
+      updateControls();
     }
   });
 
   $('session-select').addEventListener('change', (event) => {
     selectedKey = event.target.value;
     renderSession();
+    updateControls();
   });
-  $('refresh').addEventListener('click', () => { showNotice(''); loadData(); });
+  $('refresh').addEventListener('click', async () => {
+    if (refreshBusy || exportBusy) return;
+    refreshBusy = true;
+    $('refresh').textContent = '讀取中…';
+    $('refresh').setAttribute('aria-busy', 'true');
+    updateControls();
+    showNotice('');
+    try { if (await loadData()) showNotice('已重新讀取本機紀錄。'); }
+    finally {
+      refreshBusy = false;
+      $('refresh').textContent = actionLabels.refresh;
+      $('refresh').setAttribute('aria-busy', 'false');
+      updateControls();
+    }
+  });
   $('open-review').addEventListener('click', () => {
-    if (!selectedSession()) return;
+    if (!selectedSession() || exportBusy || deleteBusy) return;
     try {
       const url = new URL(chrome.runtime.getURL('review.html'), window.location.href);
       url.searchParams.set('id', selectedKey.slice(SESSION_PREFIX.length));
       window.open(url.href, '_blank', 'noopener');
+      showNotice('已送出開啟要求，請查看新的對局回顧分頁。');
     } catch (error) { reportError('無法開啟本機回顧頁。', error); }
   });
   $('export-json').addEventListener('click', () => withPreparedSession(session => {
       downloadFile(JSON.stringify(session, null, 2), 'json', 'application/json;charset=utf-8', session);
-  }));
+  }, 'export-json'));
   $('export-csv').addEventListener('click', () => withPreparedSession(session => {
       const csv = globalThis.MSARecorderCore.toCSV(session);
       if (typeof csv !== 'string') throw new Error('CSV 格式不正確。');
       downloadFile(csv.startsWith('\uFEFF') ? csv : '\uFEFF' + csv, 'csv', 'text/csv;charset=utf-8', session);
-  }));
+  }, 'export-csv'));
   $('sync-log').addEventListener('click', async () => {
     if (exportBusy || !selectedSession()) return;
-    exportBusy=true; $('sync-log').disabled=true;
+    setRecordBusy(true, 'sync-log');
     try {
-      const {refresh} = await prepareExport();
-      showNotice(refresh?.refreshed ? `已更新這場公開 Log。${refresh.partial ? '仍有待確認資料：'+refresh.reason+'。' : ''}請到回顧頁查看整場涵蓋範圍。` : `未更新：${refresh?.reason || '請回到該場對局頁再試'}`, !refresh?.refreshed || refresh?.partial);
+      const {session, refresh} = await prepareExport();
+      showNotice(`${sessionLabel(session)}：` + (refresh?.refreshed ? `已更新公開 Log。${refresh.partial ? '仍有待確認資料：'+refresh.reason+'。' : ''}請到回顧頁查看涵蓋範圍。` : `未更新：${refresh?.reason || '請回到該場對局頁再試'}`), !refresh?.refreshed || refresh?.partial);
       await loadData();
     } catch(error) { reportError('未能更新公開 Log。', error); }
-    finally { exportBusy=false; $('sync-log').disabled=false; renderSessions(); }
+    finally { setRecordBusy(false); renderSessions(); }
   });
   $('delete-session').addEventListener('click', async () => {
     const session = selectedSession();
-    if (!session) return;
+    if (!session || exportBusy || deleteBusy) return;
     const key = selectedKey;
     const description = `${session.playerName || '玩家未辨識'} · ${dateText(session.startedAt)}`;
     if (!window.confirm(`刪除「${description}」的這一筆本機記錄？此動作無法復原，建議先下載 JSON。正在記錄中的對局可能再次產生資料。`)) return;
-    $('delete-session').disabled = true;
+    deleteBusy = true;
+    $('delete-session').textContent = '刪除中…';
+    $('delete-session').setAttribute('aria-busy', 'true');
+    updateControls();
     try {
       await chrome.storage.local.remove(key);
       if (selectedKey === key) selectedKey = '';
       showNotice('已刪除此筆本機記錄。');
       await loadData();
     } catch (error) { reportError('未能刪除記錄，請再試一次。', error); }
-    finally { $('delete-session').disabled = false; }
+    finally {
+      deleteBusy = false;
+      $('delete-session').textContent = actionLabels['delete-session'];
+      $('delete-session').setAttribute('aria-busy', 'false');
+      updateControls();
+    }
   });
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
