@@ -52,7 +52,8 @@ for path in extension_files:
         raise SystemExit(f"Unexpected extension asset: {path.relative_to(ROOT)}")
 files = [path for path in extension_files if path.is_file()]
 files += [ROOT / name for name in [
-    "README.md", "CHANGELOG.md", "docs/使用教學.md", "docs/card-sources.md", "docs/Rust-Wasm.md",
+    "README.md", "README.en.md", "CHANGELOG.md", "docs/使用教學.md", "docs/user-guide.en.md",
+    "docs/card-sources.md", "docs/card-sources.en.md", "docs/Rust-Wasm.md", "docs/Rust-Wasm.en.md", "docs/sharing.md",
     "docs/images/popup-v0.4.jpg", "docs/images/review-v0.4.jpg", "docs/images/live-panel-v0.5.jpg",
     "docs/images/live-panel-v0.6.jpg", "docs/images/library-v0.6.jpg", "docs/images/deck-tracker-v0.7.jpg"
 ]]

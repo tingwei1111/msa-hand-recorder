@@ -1,5 +1,14 @@
 # 版本紀錄
 
+## 文件更新／Documentation update — 程式版本仍為 v0.8.0
+
+- 擴充繁中首頁及完整使用教學，新增對等英文首頁、完整英文手冊與中文按鈕對照。
+- 新增英文卡片來源、開發說明及雙語分享文案；補充原安裝路徑查找、更新、Wasm 啟動處置、FAQ、隱私與回報指引。
+- 明確區分雙語文件與尚未實作的英文 UI／查卡語言切換；沿用公開測試、真人整場未驗證及捕捉缺口的界線。
+- 新增雙語 Issue 範本，未修改記錄器程式、權限、資料格式或現有發佈 ZIP。
+
+Expanded Traditional Chinese documentation and added an English README, full English guide with a Chinese-button glossary, English reference documents, bilingual sharing drafts, and issue templates. The extension remains v0.8.0 with a Traditional Chinese interface. No recorder behavior, permissions, storage formats, or existing release ZIP was changed.
+
 ## v0.8.0 — Rust／WebAssembly 牌組核心公開測試版
 
 - 將完整牌組投影改由 Rust 編譯的 WebAssembly 執行，涵蓋牌組與凍結版本驗證、本人手牌分類、公開卡彙整、Token 分列及同版本人工戰績。Chrome 介面與可見畫面擷取流程保留。

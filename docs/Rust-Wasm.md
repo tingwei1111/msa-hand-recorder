@@ -1,5 +1,7 @@
 # Rust／WebAssembly 牌組核心
 
+**繁體中文** · [English](Rust-Wasm.en.md) · [專案首頁](../README.md) · [使用教學](使用教學.md)
+
 v0.8.0 將牌組追蹤的資料計算移至 Rust，編譯為 WebAssembly，保留 Chrome 擴充功能的既有操作與存檔格式。一般使用者下載安裝包即可，不需安裝 Rust、Node.js 或額外的 Wasm 執行環境。
 
 ## 程式分工
