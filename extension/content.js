@@ -45,6 +45,8 @@
           gameId:requested.gameId,runId:requested.runId,playerName:requested.playerName}),
         onBookmark:(requested,payload) => chrome.runtime.sendMessage({type:'MSA_NOTE_ACTION',action:'create',
           gameId:requested.gameId,runId:requested.runId,playerName:requested.playerName,payload}),
+        onBindDeck:(requested,payload) => chrome.runtime.sendMessage({type:'MSA_BIND_LIVE_DECK',
+          gameId:requested.gameId,runId:requested.runId,playerName:requested.playerName,...payload}),
         onCardLookup:cardCode => chrome.runtime.sendMessage({type:'MSA_CARD_LOOKUP',cardCode,locale:'zh-tw'}),
         onManage:requested => chrome.runtime.sendMessage({type:'MSA_OPEN_LIBRARY',gameId:requested.gameId,
           runId:requested.runId,playerName:requested.playerName}),

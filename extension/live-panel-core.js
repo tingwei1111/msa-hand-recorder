@@ -2,10 +2,11 @@
   'use strict';
   const commonJS = typeof module === 'object' && module.exports;
   const api = factory(commonJS ? require('./recorder-core.js') : root.MSARecorderCore,
-    commonJS ? require('./battle-log-core.js') : root.MSABattleLogCore);
+    commonJS ? require('./battle-log-core.js') : root.MSABattleLogCore,
+    commonJS ? require('./deck-tracker-core.js') : root.MSADeckTrackerCore);
   if (commonJS) module.exports = api;
   if (root) root.MSALivePanelCore = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (core, battle) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (core, battle, tracker) {
   'use strict';
   const PREFIX = 'msa.session.';
   const text = value => typeof value === 'string' ? value : '';
@@ -197,6 +198,8 @@
       publicEventCount:events.length, publicPlayCount:plays.length, recentPlays, coverageLabel, coverageTone,
       captureIssues, handDelta,healthAlerts:copy(Array.isArray(context.healthAlerts)?context.healthAlerts:[]),
       endObserved:Boolean(context.endObserved),statusLabel:'等待已存資料', statusTone:'neutral', statusDetail:''};
+    if (tracker?.project) model.deckTracker = tracker.project({values,context,handModel:hand,events,
+      players:[...knownPlayers],coverage});
     const pending = count(context.pendingCount) || 0, writeError = text(context.writeError).trim();
     const details = [];
     if (writeError) {

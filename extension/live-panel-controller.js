@@ -8,6 +8,7 @@
   const PREFERENCE_KEY = 'msa.livePanel';
   const PREFIX = 'msa.session.';
   const NOTE_PREFIX = 'msa.note.';
+  const MATCH_PREFIX = 'msa.match.', DECK_PREFIX = 'msa.deck.';
   const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
   const bounded = (value, fallback, min, max) => typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.min(max, Math.round(value))) : fallback;
   const preferences = value => ({
@@ -15,7 +16,7 @@
     expanded: value?.expanded === true,
     left: typeof value?.left === 'number' && Number.isFinite(value.left) ? Math.max(0, Math.min(100000, Math.round(value.left))) : null,
     top: typeof value?.top === 'number' && Number.isFinite(value.top) ? Math.max(0, Math.min(100000, Math.round(value.top))) : null,
-    tab: ['hand','events','all'].includes(value?.tab) ? value.tab : 'hand',
+    tab: ['deck','hand','events','all'].includes(value?.tab) ? value.tab : 'hand',
     width: bounded(value?.width, 320, 280, 480),
     fontSize: bounded(value?.fontSize, 12, 11, 16),
     dock: ['free','left','right'].includes(value?.dock) ? value.dock : 'free'
@@ -23,7 +24,7 @@
 
   function create(options) {
     const {storage, getContext, project, createUI} = options;
-    let disposed = false, generation = 0, key = '', view = null, cache = {};
+    let disposed = false, generation = 0, key = '', scopePlayer = '', view = null, cache = {};
     let loading = false, loaded = false, readError = '', preferenceError = '';
     let prefs = preferences(), preferenceRevision = 0, pendingPreferences = 0;
     let preferenceWrites = Promise.resolve(), changesDuringRead = new Map();
@@ -43,7 +44,7 @@
     function unmount() {
       generation += 1;
       clearTimeout(renderTimer);
-      view?.destroy(); view = null; key = ''; cache = {};
+      view?.destroy(); view = null; key = ''; scopePlayer = ''; cache = {};
       loading = false; loaded = false; readError = ''; refreshing = null;
       changesDuringRead = new Map();
     }
@@ -52,6 +53,17 @@
       return isSessionKey(name) && name.startsWith(`${PREFIX}${ctx.gameId}.`) && value && value.gameId === ctx.gameId;
     }
     function apply(name, value, ctx) {
+      if (name.startsWith(DECK_PREFIX)) {
+        if (value?.schemaVersion === 1 && name === DECK_PREFIX + value.id && Array.isArray(value.main)) cache[name] = value;
+        else delete cache[name];
+        return;
+      }
+      if (name.startsWith(MATCH_PREFIX)) {
+        if (ctx.playerName && value?.schemaVersion === 1 && name === MATCH_PREFIX + value.id &&
+          value.playerName === ctx.playerName && value.source === 'manual' && value.identityConfirmed === true) cache[name] = value;
+        else delete cache[name];
+        return;
+      }
       if (name.startsWith(NOTE_PREFIX)) {
         if (value && value.gameId === ctx.gameId && (!value.playerName || value.playerName === ctx.playerName)) cache[name] = value;
         else delete cache[name];
@@ -74,11 +86,14 @@
       model.canReview = Boolean(model.sessionId && cache[PREFIX + model.sessionId]?.gameId === ctx.gameId);
       model.canBookmark = Boolean(loaded && !readError && ctx.playerName && model.latestSnapshot?.id &&
         cache[PREFIX + contextKey(ctx)]?.playerName === ctx.playerName);
+      if (model.deckTracker) model.deckTracker.canBind = model.canBookmark;
       model.preferenceError = preferenceError;
       if (readError || !loaded) {
         model = {...model, latestSnapshot:null, handCards:[], recentPlays:[], snapshotCount:0,
           publicEventCount:0, publicPlayCount:0, canReview:false, canBookmark:false,
           handDelta:{comparable:false,added:[],removed:[],reason:'尚未確認已存觀察'},
+          deckTracker:{state:'identity-unknown',playerName:ctx.playerName || '',availableDecks:[],rows:[],canBind:false,
+            warnings:readError?['本機記錄讀取失敗，未使用先前的牌組或計數。']:[],publicCards:{own:[],opponent:[],unknown:[],tokens:[]}},
           statusTone:readError ? 'error' : 'neutral', statusLabel:readError ? '本機記錄讀取失敗' : '讀取本場記錄中…',
           statusDetail:readError || '小窗只會顯示本場已確認存入的資料。'};
       }
@@ -177,19 +192,34 @@
       }).then(result => matches(token,ctx,true) ? result : {ok:false,reason:'對局已切換，請到原對局回顧確認書籤結果。'})
         .catch(error => ({ok:false,reason:String(error?.message || error)}));
     }
+    function bindDeck(token, payload) {
+      const ctx = actionContext(token), source = ctx && cache[PREFIX + contextKey(ctx)];
+      if (!ctx || !loaded || readError || !ctx.playerName || !source || source.playerName !== ctx.playerName || !source.snapshots?.length) {
+        return Promise.resolve({ok:false,reason:'請先確認本段已有來源相符的本人手牌。'});
+      }
+      if (payload?.confirmed !== true || typeof payload.deckVersionId !== 'string' || !cache[DECK_PREFIX + payload.deckVersionId]) {
+        return Promise.resolve({ok:false,reason:'請選擇已保存的牌組版本，再確認綁定。'});
+      }
+      if (typeof options.onBindDeck !== 'function') return Promise.resolve({ok:false,reason:'本場牌組綁定服務尚未載入。'});
+      return Promise.resolve().then(() => matches(token,ctx,true) ? options.onBindDeck({...ctx,sessionId:contextKey(ctx)},
+        {deckVersionId:payload.deckVersionId,confirmed:true}) : {ok:false,reason:'對局或玩家已切換。'})
+        .then(result => matches(token,ctx,true) ? result : {ok:false,reason:'對局已切換，請到原對局確認綁定結果。'})
+        .catch(error => ({ok:false,reason:String(error?.message || error)}));
+    }
     function sync() {
       if (disposed) return;
       const ctx = context();
       if (!ctx) { if (view || key) unmount(); return; }
       const next = contextKey(ctx);
-      if (key !== next || !view) {
-        unmount(); key = next;
+      if (key !== next || !view || scopePlayer !== (ctx.playerName || '')) {
+        unmount(); key = next; scopePlayer = ctx.playerName || '';
         const token = generation;
         view = createUI({
           onPreferencesChange:value => savePreferences(value, token),
           onRefresh:() => refresh(token),
           onReview:() => review(token),
           onBookmark:payload => bookmark(token,payload),
+          onBindDeck:payload => bindDeck(token,payload),
           onCardLookup:code => actionContext(token) && typeof options.onCardLookup === 'function' ? options.onCardLookup(code) : Promise.resolve({status:'error',cardCode:code,reason:'卡片查詢服務尚未載入，或對局已切換。'}),
           onDismissAlert:code => {
             const ctx = actionContext(token);
@@ -221,7 +251,8 @@
           if (loading) changesDuringRead.set(name, change.newValue);
           if (!pendingPreferences) { prefs = preferences(change.newValue); view?.setPreferences(prefs); }
           relevant = true;
-        } else if (name.startsWith(`${PREFIX}${ctx.gameId}.`) || name.startsWith(NOTE_PREFIX)) {
+        } else if (name.startsWith(`${PREFIX}${ctx.gameId}.`) || name.startsWith(NOTE_PREFIX) ||
+          name.startsWith(MATCH_PREFIX) || name.startsWith(DECK_PREFIX)) {
           if (loading) changesDuringRead.set(name, change.newValue);
           apply(name, change.newValue, ctx); relevant = true;
         }

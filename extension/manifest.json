@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MSA 手牌記錄器",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "在本機整合 MSA 自己的手牌、雙方公開出牌與 Battle Log，依回合檢視並匯出賽後分析資料。",
   "permissions": [
     "storage"
@@ -27,7 +27,9 @@
         "diagnostics-core.js",
         "dom-reader.js",
         "capture-coordinator.js",
+        "deck-tracker-core.js",
         "live-panel-core.js",
+        "deck-tracker-ui.js",
         "live-panel-ui.js",
         "live-panel-controller.js",
         "content.js"

@@ -12,7 +12,7 @@
     return Object.assign({}, value, {expanded:value.expanded === true,
       left:typeof value.left === 'number' && Number.isFinite(value.left) ? bounded(value.left,0,0,100000) : null,
       top:typeof value.top === 'number' && Number.isFinite(value.top) ? bounded(value.top,0,0,100000) : null,
-      tab:['hand','events','all'].indexOf(value.tab) >= 0 ? value.tab : 'hand',
+      tab:['deck','hand','events','all'].indexOf(value.tab) >= 0 ? value.tab : 'hand',
       width:bounded(value.width,320,280,480),fontSize:bounded(value.fontSize,12,11,16),
       dock:['free','left','right'].indexOf(value.dock) >= 0 ? value.dock : 'free'});
   }
@@ -52,7 +52,8 @@
     var previewTrigger = null;
     var previewPinned = false;
     var previewCode = '';
-    var tabScroll = {hand:0,events:0,all:0};
+    var restoringPreviewFocus = null;
+    var tabScroll = {deck:0,hand:0,events:0,all:0};
     var lastDeltaKey = '';
     var acknowledgedAlerts = new Set();
     var alertRows = new Map();
@@ -136,6 +137,13 @@
       .status-dot.success { background:#087f75; }.status-dot.warning { background:#c38b33; }.status-dot.error { background:#b2573b; }
       .launcher-count { font-size:0.8333em; color:#627571; font-weight:500; }
       .panel { display:flex; flex-direction:column; width:100%; max-height:min(540px,calc(100vh - 80px)); overflow:hidden; border:1px solid #b7cbbb; border-radius:13px; background:#f5f6f2; box-shadow:0 8px 30px #17313b26; }
+      .panel.tracker-mode { max-height:min(760px,calc(100vh - 32px)); }
+      .panel.tracker-mode .scroll { padding:10px; }
+      .panel.tracker-mode .detail { margin-bottom:6px; }
+      .panel.tracker-mode .section { margin-top:8px; }
+      .panel.tracker-mode .footer { padding:8px 10px; }
+      .panel.tracker-mode .manage { display:none; }
+      .panel.tracker-mode .bookmark-open { margin-top:5px; min-height:30px; padding:4px 8px; }
       .panel-header { display:flex; align-items:center; justify-content:space-between; gap:9px; flex-shrink:0; padding:11px 12px; border-bottom:1px solid #dce4dd; cursor:grab; touch-action:none; user-select:none; }
       .panel-header.dragging { cursor:grabbing; }
       .heading { display:flex; align-items:center; gap:8px; min-width:0; }
@@ -274,10 +282,10 @@
     var tabs = node('nav', 'tabs');
     tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', '小窗顯示內容');
     var tabButtons = {};
-    [['hand','手牌'],['events','公開事件'],['all','全部']].forEach(function (entry) {
+    [['deck','牌組'],['hand','手牌'],['events','公開事件'],['all','全部']].forEach(function (entry) {
       var item = button(entry[1], 'tab-' + entry[0]);
       item.id = 'msa-live-tab-' + entry[0]; item.setAttribute('role','tab');
-      item.setAttribute('aria-controls', entry[0] === 'all' ? 'msa-live-hand msa-live-events' : entry[0] === 'hand' ? 'msa-live-hand' : 'msa-live-events');
+      item.setAttribute('aria-controls', entry[0] === 'all' ? 'msa-live-deck msa-live-hand msa-live-events' : entry[0] === 'deck' ? 'msa-live-deck' : entry[0] === 'hand' ? 'msa-live-hand' : 'msa-live-events');
       tabButtons[entry[0]] = item; tabs.append(item);
     });
     var scroll = node('div', 'scroll');
@@ -326,6 +334,15 @@
     var editorActions = node('div','editor-actions'); editorActions.append(bookmarkCancel,bookmarkSave);
     var bookmarkStatus = node('p','bookmark-status'); bookmarkStatus.setAttribute('role','status');
     bookmarkEditor.append(node('h3','','標記此刻'),bookmarkAnchorLabel,noteLabel,tagLabel,editorActions,bookmarkStatus);
+    var deckSection = node('section','section');
+    deckSection.id = 'msa-live-deck'; deckSection.setAttribute('role','tabpanel'); deckSection.setAttribute('aria-labelledby','msa-live-tab-deck');
+    var deckView = root.MSADeckTrackerUI?.create({document:doc,
+      onCardControl:function(control,code){control.dataset.cardCode=code;bindCard(control);},
+      onBindDeck:function(payload){return typeof options.onBindDeck==='function'?options.onBindDeck(payload):Promise.resolve({ok:false,reason:'牌組綁定服務尚未載入。'});},
+      onManage:function(){return typeof options.onManage==='function'?options.onManage():Promise.resolve({ok:false,reason:'資料管理服務尚未載入。'});}
+    });
+    if(deckView)deckSection.append(deckView.element);
+    else deckSection.append(node('p','empty','牌組追蹤模組尚未載入，更新後請重新整理 MSA 分頁。'));
     var handSection = node('section', 'section');
     handSection.id = 'msa-live-hand'; handSection.setAttribute('role','tabpanel'); handSection.setAttribute('aria-labelledby','msa-live-tab-hand');
     var handTitle = node('div', 'section-title');
@@ -364,7 +381,7 @@
     var issueTitle = node('summary');
     var issueList = node('ul', 'issue-list');
     issues.append(issueTitle, issueList);
-    scroll.append(healthAlerts,endNotice,status,statusDetail,modelNotice,displaySettings,bookmarkEditor,handSection,playSection,coverage,issues);
+    scroll.append(healthAlerts,endNotice,status,statusDetail,modelNotice,displaySettings,bookmarkEditor,deckSection,handSection,playSection,coverage,issues);
     var footer = node('footer', 'footer');
     var actions = node('div', 'actions');
     var refreshButton = button('更新 Log', 'refresh');
@@ -406,7 +423,7 @@
       surface.style.setProperty('--panel-font-size', preferences.fontSize + 'px');
       var rect = surface.getBoundingClientRect();
       var width = rect.width || (preferences.expanded ? Math.min(preferences.width, view.width - 16) : 132);
-      var height = rect.height || (preferences.expanded ? Math.min(540, view.height - 80) : 42);
+      var height = rect.height || (preferences.expanded ? Math.min(preferences.tab==='deck'?760:540, view.height - (preferences.tab==='deck'?32:80)) : 42);
       var edge = 8;
       var left = preferences.left === null ? view.width - width - 16 : preferences.left;
       if (preferences.dock === 'left') left = edge;
@@ -437,7 +454,10 @@
     }
     function applyDisplay(previousTab) {
       if (previousTab && previousTab !== preferences.tab) { tabScroll[previousTab] = scroll.scrollTop; closePreview(false); }
-      handSection.hidden = preferences.tab === 'events'; playSection.hidden = preferences.tab === 'hand';
+      panel.classList.toggle('tracker-mode',preferences.tab==='deck');
+      deckSection.hidden = preferences.tab !== 'deck' && preferences.tab !== 'all';
+      handSection.hidden = preferences.tab === 'events' || preferences.tab === 'deck';
+      playSection.hidden = preferences.tab === 'hand' || preferences.tab === 'deck';
       Object.keys(tabButtons).forEach(function (tab) {
         tabButtons[tab].setAttribute('aria-selected',String(tab === preferences.tab));
         tabButtons[tab].tabIndex = tab === preferences.tab ? 0 : -1;
@@ -452,7 +472,10 @@
       clearTimeout(lookupTimer); lookupTimer = null; lookupSequence += 1;
       preview.hidden = true; previewImage.removeAttribute('src'); previewImage.hidden = true;
       var prior = previewTrigger; previewTrigger = null; previewCode = ''; previewPinned = false;
-      if (restoreFocus && prior && prior.isConnected && !dialogVisible) prior.focus({preventScroll:true});
+      if (restoreFocus && prior && prior.isConnected && !dialogVisible) {
+        restoringPreviewFocus=prior;
+        try { prior.focus({preventScroll:true}); } finally { restoringPreviewFocus=null; }
+      }
     }
     async function lookupCard(trigger, pinned) {
       var code = cardCode(trigger.dataset.cardCode);
@@ -494,7 +517,8 @@
       } finally { if (!destroyed && sequence === lookupSequence) preview.setAttribute('aria-busy','false'); }
     }
     function bindCard(item) {
-      function schedule() {
+      function schedule(event) {
+        if(event?.type==='focus'&&restoringPreviewFocus===item)return;
         clearTimeout(lookupTimer);
         if (cardCode(item.dataset.cardCode)) lookupTimer = setTimeout(function () { lookupTimer = null; lookupCard(item,false); },350);
       }
@@ -586,6 +610,7 @@
       quality.className = 'quality ' + (['complete', 'partial', 'unavailable'].indexOf(model.quality) >= 0 ? model.quality : 'unavailable');
       text(quality, model.qualityLabel || '尚未觀察');
       text(handSummary, model.handSummary || '尚無已儲存手牌，不能視為空手。');
+      deckView?.update(model.deckTracker || {state:'identity-unknown',availableDecks:[],rows:[],publicCards:{own:[],opponent:[],unknown:[],tokens:[]}});
       // Only the projection's confirmed current run may expose saved hand data.
       var cards = model.identityConfirmed && model.latestSnapshot && Array.isArray(model.handCards) ? model.handCards : [];
       var delta=model.handDelta || {}, comparable=Boolean(model.identityConfirmed && model.latestSnapshot && model.quality==='complete' && delta.comparable);
@@ -677,8 +702,8 @@
       function selectTab(next){var previous=preferences.tab;preferences.tab=next;applyDisplay(previous);place();savePreferences();}
       tabButtons[tab].addEventListener('click',function(){selectTab(tab);});
       tabButtons[tab].addEventListener('keydown',function(event){
-        var keys=['hand','events','all'],index=keys.indexOf(tab),next=null;
-        if(event.key==='ArrowRight')next=keys[(index+1)%3];else if(event.key==='ArrowLeft')next=keys[(index+2)%3];else if(event.key==='Home')next='hand';else if(event.key==='End')next='all';
+        var keys=['deck','hand','events','all'],index=keys.indexOf(tab),next=null;
+        if(event.key==='ArrowRight')next=keys[(index+1)%keys.length];else if(event.key==='ArrowLeft')next=keys[(index+keys.length-1)%keys.length];else if(event.key==='Home')next='deck';else if(event.key==='End')next='all';
         if(next){event.preventDefault();event.stopPropagation();selectTab(next);tabButtons[next].focus();}
       });
     });
@@ -856,7 +881,7 @@
         if (dialogFrame !== null) win.cancelAnimationFrame(dialogFrame);
         win.removeEventListener('resize', place);
         if (win.visualViewport) win.visualViewport.removeEventListener('resize', place);
-        host.remove(); handRows.clear(); playRows.clear();alertRows.clear();
+        deckView?.destroy();host.remove(); handRows.clear(); playRows.clear();alertRows.clear();
       }
     });
   }

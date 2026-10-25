@@ -121,6 +121,13 @@ document.getElementById('empty').onclick=()=>setHand([]);
 document.getElementById('reset').onclick=reset;
 document.getElementById('open-log').onclick=()=>openLog(sampleLogRows);
 document.getElementById('close-log').onclick=closeLog;
+document.getElementById('seed-tracker-deck').onclick=async()=>{
+ const codes=['GD05-002','ST04-010','GD04-068',...Array.from({length:10},(_,index)=>'GD99-'+String(index+1).padStart(3,'0'))];
+ const record=await MSALibraryCore.createDeckVersion({deckId:'synthetic-tracker-deck',name:'合成測試牌組（非實戰牌表）',
+  mainText:codes.map((code,index)=>(index===12?'2':'4')+'x'+code).join('\n'),resourcesText:'10xR-001',tokensText:'2xT-021'});
+ await chrome.storage.local.set({['msa.deck.'+record.id]:record});
+ document.getElementById('seed-tracker-deck').textContent='合成牌組已載入';
+};
 if(document.getElementById('show-live')){
  document.getElementById('show-live').onclick=()=>captureMessageListeners[0]?.({type:'MSA_LIVE_PANEL_SHOW'},{id:chrome.runtime.id},()=>{});
  document.getElementById('unreadable').onclick=()=>setHand(['back']);

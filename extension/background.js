@@ -139,6 +139,43 @@ async function libraryAction(message) {
   const store=MSALibraryStore.create({storage:chrome.storage.local,withKeyLock:(key,task)=>enqueue(key,task)});
   return store[message.action](message);
 }
+async function bindLiveDeck(message, sender) {
+  const {gameId,runId,playerName,deckVersionId} = message;
+  if (message.confirmed !== true || senderGameId(sender) !== gameId ||
+      !UUID.test(gameId || '') || !UUID.test(runId || '') ||
+      !Number.isInteger(sender.tab?.id) || typeof sender.documentId !== 'string' || !sender.documentId ||
+      typeof playerName !== 'string' || !playerName.trim() || playerName.length > 200 ||
+      typeof deckVersionId !== 'string' || !deckVersionId || deckVersionId.length > 256) {
+    return {ok:false,reason:'請在本場小窗明確確認牌組與本人身分。'};
+  }
+  if (!globalThis.MSALibraryCore || !globalThis.MSALibraryStore) return {ok:false,reason:'牌組管理模組尚未載入。'};
+  const sourceId = gameId + '.' + runId;
+  const values = await chrome.storage.local.get(null), source = values['msa.session.' + sourceId];
+  if (!source || source.schemaVersion !== 1 || source.id !== sourceId || source.gameId !== gameId ||
+      source.playerName !== playerName || !Array.isArray(source.snapshots) || !source.snapshots.length ||
+      source.captureSource?.tabId !== sender.tab.id || source.captureSource?.documentId !== sender.documentId) {
+    return {ok:false,reason:'找不到與目前玩家、分頁及記錄段落相符的已存手牌。'};
+  }
+  const deckKey = 'msa.deck.' + deckVersionId, deck = values[deckKey];
+  if (!deck || deck.id !== deckVersionId) return {ok:false,reason:'找不到選取的牌組版本，請重新選擇。'};
+  MSALibraryCore.validateRecords({[deckKey]:deck});
+  const time = value => Number.isFinite(Date.parse(value)) ? Date.parse(value) : -Infinity;
+  const matches = Object.entries(values).filter(([key, record]) => {
+    if (!record || key !== 'msa.match.' + record.id || record.schemaVersion !== 1 ||
+        record.gameId !== gameId || record.playerName !== playerName ||
+        record.source !== 'manual' || record.identityConfirmed !== true) return false;
+    try { MSALibraryCore.validateRecords({[key]:record}); return true; } catch (_) { return false; }
+  }).map(([,record]) => record).sort((a,b) => time(b.updatedAt) - time(a.updatedAt) || String(b.id).localeCompare(String(a.id)));
+  const existing = matches[0];
+  if (existing?.deckVersionId === deckVersionId) return {ok:true,record:existing,existing:true};
+  if (existing?.resultConfirmed === true) {
+    return {ok:false,reason:'本場已有人工確認結果；如需更換凍結牌組，請到「資料與牌組」核對後修改。'};
+  }
+  const store = MSALibraryStore.create({storage:chrome.storage.local,withKeyLock:(key,task)=>enqueue(key,task)});
+  return store.saveMatch({draft:{sourceSessionId:sourceId,gameId,playerName,identityConfirmed:true,deckVersionId,
+    firstPlayer:existing?.firstPlayer || 'unknown',result:existing?.result || 'unknown',
+    resultConfirmed:existing?.resultConfirmed === true}});
+}
 async function showLivePanel() {
   const tabs = await chrome.tabs.query({active:true,currentWindow:true});
   if (!tabs[0]?.id) return {ok:false,reason:'請先切換到 MSA 對局頁面。'};
@@ -228,6 +265,10 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if(message?.type==='MSA_LIBRARY_ACTION'){
     if(!extensionSender(sender)){respond({ok:false,error:'只能從本機資料管理頁操作。'});return false;}
     enqueue('workspace',()=>libraryAction(message)).then(respond,error=>respond({ok:false,error:String(error.message||error)}));return true;
+  }
+  if(message?.type==='MSA_BIND_LIVE_DECK'){
+    if(!senderGameId(sender)){respond({ok:false,reason:'只能從目前 MSA 對局小窗綁定牌組。'});return false;}
+    enqueue('workspace',()=>bindLiveDeck(message,sender)).then(respond,error=>respond({ok:false,reason:String(error.message||error)}));return true;
   }
   if (message?.type === 'MSA_SHOW_LIVE_PANEL') {
     if (!extensionSender(sender)) { respond({ok:false,reason:'不允許的小窗操作來源。'}); return false; }

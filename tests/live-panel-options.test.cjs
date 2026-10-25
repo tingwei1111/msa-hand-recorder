@@ -44,7 +44,7 @@ function harness(options = {}) {
       const current=cache[`msa.session.${ctx.gameId}.${ctx.runId}`];
       return {gameId:ctx.gameId,playerName:ctx.playerName,sessionId:current?.id || null,
         identityConfirmed:current?.playerName===ctx.playerName,latestSnapshot:current?.snapshots?.at(-1),
-        noteIds:Object.keys(cache).filter(key=>key.startsWith('msa.note.'))};
+        noteIds:Object.keys(cache).filter(key=>key.startsWith('msa.note.')),cachedKeys:Object.keys(cache)};
     },
     createUI(callbacks) {
       const view={callbacks,models:[],prefs:[],destroyed:false,
@@ -54,6 +54,7 @@ function harness(options = {}) {
     },
     onCapture:async()=>({ok:true,refreshed:true}),onReview:async()=>({ok:true}),
     onBookmark:async(ctx,payload)=>{calls.push({kind:'bookmark',ctx,payload});return options.bookmark?options.bookmark(ctx,payload):{ok:true};},
+    onBindDeck:async(ctx,payload)=>{calls.push({kind:'bind',ctx,payload});return options.bind?options.bind(ctx,payload):{ok:true};},
     onCardLookup:async code=>{calls.push({kind:'lookup',code});return {status:'notfound',cardCode:code};},
     onDismissAlert:async(ctx,code)=>{calls.push({kind:'dismiss',ctx,code});return {ok:true};},
     onManage:async ctx=>{calls.push({kind:'manage',ctx});return {ok:true};}
@@ -88,6 +89,61 @@ test('display preference bounds and invalid input are conservative', () => {
   const large=ui.normalizePreferences(cases[3]);
   assert.equal(large.width,480);assert.equal(large.fontSize,11);assert.equal(large.left,12);assert.equal(large.top,14);
   assert.equal(ui.normalizePreferences(cases[4]).expanded,false);
+});
+
+test('deck tab preferences remain consistent across the controller and UI',()=>{
+  assert.equal(ui.normalizePreferences({tab:'deck'}).tab,'deck');
+  assert.deepEqual(ui.normalizePreferences({tab:'deck'}),controllerAPI.normalizePreferences({tab:'deck'}));
+});
+
+test('tracker cache admits deck versions and this player matches while excluding other player history',async()=>{
+  const ownMatch={schemaVersion:1,id:'own-match',gameId:'historical-game',playerName:'Demo North',source:'manual',identityConfirmed:true};
+  const otherMatch={...ownMatch,id:'other-match',playerName:'Demo South'};
+  const deck={schemaVersion:1,id:'test-version',main:[]};
+  const h=harness({values:{'msa.match.own-match':ownMatch,'msa.match.other-match':otherMatch,'msa.deck.test-version':deck,
+    'msa.deck.mismatch':deck,'msa.match.mismatch':ownMatch,'msa.session.other-game.run':session({id:'other-game.run',gameId:'other-game'})}});
+  try{
+    await h.ready();const keys=h.view().models.at(-1).cachedKeys;
+    assert.ok(keys.includes('msa.match.own-match'));assert.ok(keys.includes('msa.deck.test-version'));
+    for(const key of ['msa.match.other-match','msa.deck.mismatch','msa.match.mismatch','msa.session.other-game.run'])assert.ok(!keys.includes(key));
+    h.change('msa.deck.test-version',undefined);h.change('msa.match.own-match',undefined);await tick();
+    assert.ok(!h.view().models.at(-1).cachedKeys.includes('msa.deck.test-version'));
+    assert.ok(!h.view().models.at(-1).cachedKeys.includes('msa.match.own-match'));
+  }finally{h.stop();}
+});
+
+test('confirmed player changes invalidate the tracker cache and reread the new player scope',async()=>{
+  const base={schemaVersion:1,gameId:'history',source:'manual',identityConfirmed:true};
+  const h=harness({context:{playerName:''},values:{'msa.match.north':{...base,id:'north',playerName:'Demo North'},
+    'msa.match.south':{...base,id:'south',playerName:'Demo South'}}});
+  try{
+    await h.ready();const anonymous=h.view();assert.ok(!anonymous.models.at(-1).cachedKeys.some(key=>key.startsWith('msa.match.')));
+    h.changeContext({playerName:'Demo North'});await tick();assert.equal(anonymous.destroyed,true);
+    assert.ok(h.view().models.at(-1).cachedKeys.includes('msa.match.north'));
+    h.changeContext({playerName:'Demo South'});await tick();
+    assert.ok(h.view().models.at(-1).cachedKeys.includes('msa.match.south'));assert.ok(!h.view().models.at(-1).cachedKeys.includes('msa.match.north'));
+  }finally{h.stop();}
+});
+
+test('live deck binding requires an explicit saved version and confirmed current source',async()=>{
+  const h=harness({values:{'msa.deck.test-version':{schemaVersion:1,id:'test-version',main:[]}}});
+  try{
+    await h.ready();
+    assert.equal((await h.view().callbacks.onBindDeck({deckVersionId:'test-version',confirmed:false})).ok,false);
+    assert.equal((await h.view().callbacks.onBindDeck({deckVersionId:'missing',confirmed:true})).ok,false);
+    assert.equal((await h.view().callbacks.onBindDeck({deckVersionId:'test-version',confirmed:true,playerName:'other',result:'win'})).ok,true);
+    assert.deepEqual(h.calls.at(-1).payload,{deckVersionId:'test-version',confirmed:true});
+    assert.equal(h.calls.at(-1).ctx.sessionId,SESSION);assert.equal(h.calls.at(-1).ctx.playerName,'Demo North');
+    assert.equal(h.writes.length,0,'binding is delegated to the worker rather than mutating capture records');
+  }finally{h.stop();}
+});
+
+test('navigation revokes a queued deck binding before its callback can write',async()=>{
+  const h=harness({values:{'msa.deck.test-version':{schemaVersion:1,id:'test-version',main:[]}}});
+  try{
+    await h.ready();const pending=h.view().callbacks.onBindDeck({deckVersionId:'test-version',confirmed:true});
+    h.changeContext({runId:OTHER},false);assert.equal((await pending).ok,false);assert.equal(h.calls.length,0);
+  }finally{h.stop();}
 });
 
 test('preview image accepts data only when its declared official source matches the requested card', () => {

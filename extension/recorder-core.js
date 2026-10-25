@@ -8,7 +8,7 @@
 
   var QUALITIES = ['complete', 'partial', 'unavailable'];
   var TURN_SOURCES = ['log', 'phase-observed', 'unknown'];
-  var VERSION = '0.6.0';
+  var VERSION = '0.7.0';
 
   function clone(value) {
     if (Array.isArray(value)) return value.map(clone);
