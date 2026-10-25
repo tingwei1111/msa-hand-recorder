@@ -113,7 +113,7 @@
     return result;
   }
 
-  function project(values, context) {
+  function project(values, context, cache) {
     context = context || {};
     const gameId = text(context.gameId), playerName = name(context.playerName);
     const identityConfirmed = Boolean(playerName);
@@ -148,7 +148,12 @@
     // Without a current identity, only this run's public evidence is admitted.
     const sources = identityConfirmed ? entries.filter(session => name(session.playerName) === playerName ||
       (!name(session.playerName) && session.snapshots.length === 0)) : current ? [current] : [];
-    let merged = null, mergeProblem = '';
+    const publicKey=cache?JSON.stringify([currentId,playerName,sources.map(source=>({id:source.id,gameId:source.gameId,
+      playerName:source.playerName,startedAt:source.startedAt,battleLog:source.battleLog,captureIssues:source.captureIssues}))]):'';
+    let merged = null, mergeProblem = '', timeline=null, events, originals;
+    if(cache?.publicKey===publicKey){
+      ({merged,mergeProblem,timeline,events,originals}=cache.evidence);
+    }else{
     try {
       if (sources.length === 1) merged = publicOnly(sources[0]);
       else if (sources.length > 1 && typeof battle?.combineSessions === 'function') {
@@ -158,12 +163,13 @@
       }
     } catch (_) { mergeProblem = '部分公開紀錄無法合併，僅顯示目前記錄段。'; }
     if (!merged && current && sources.includes(current)) merged = publicOnly(current);
-    let timeline = null;
     try { if (merged && typeof battle?.buildTimeline === 'function') timeline = battle.buildTimeline(merged); }
     catch (_) { mergeProblem = '公開紀錄摘要無法確認，請開啟回顧頁檢查原文。'; }
-    const events = eventsOf(merged);
+    events = eventsOf(merged);
+    originals = originalEvents(events, sources);
+    if(cache){cache.publicKey=publicKey;cache.evidence={merged,mergeProblem,timeline,events,originals};}
+    }
     const plays = events.filter(event => event?.isPlay === true);
-    const originals = originalEvents(events, sources);
     const knownPlayers = new Set((Array.isArray(merged?.battleLog?.players) ? merged.battleLog.players : []).map(name).filter(Boolean));
     const recentPlays = [];
     for (let index = events.length-1; index >= 0 && recentPlays.length < 20; index -= 1) {
@@ -253,5 +259,9 @@
     model.statusDetail = details.join(' ');
     return model;
   }
-  return Object.freeze({project});
+  function createProjector(){
+    const cache={};
+    return (values,context)=>project(values,context,cache);
+  }
+  return Object.freeze({project,createProjector});
 });

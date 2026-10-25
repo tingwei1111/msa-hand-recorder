@@ -12,15 +12,27 @@
     // The caller serializes these mutations with recorder writes in the
     // background queue. Chrome storage is not an atomic multi-key transaction.
     const read=()=>storage.get(null);
+    async function capacity(){
+      if(typeof storage.getBytesInUse!=='function')return null;
+      try{return {used:await storage.getBytesInUse(null),limit:Number(storage.QUOTA_BYTES)||10485760};}catch(_){return null;}
+    }
     async function previewImport({text,fileName}={}){
       const parsed=core.parseImport(text,{fileName}),plan=await core.planImport(await read(),parsed);
       const {writes,...preview}=plan;
-      return {ok:true,...preview};
+      const usage=await capacity();
+      if(usage){
+        usage.projected=usage.used+plan.summary.estimatedWriteBytes;
+        preview.warnings.push(`本機已用 ${(usage.used/1048576).toFixed(2)} MiB；匯入後預估 ${(usage.projected/1048576).toFixed(2)} / ${(usage.limit/1048576).toFixed(0)} MiB。`);
+        if(usage.projected>usage.limit)preview.warnings.push('預估容量不足；請先備份及管理既有資料，現在不會開始匯入。');
+      }
+      return {ok:true,...preview,capacity:usage};
     }
     async function applyImport({text,fileName,previewToken,confirmed}={}){
       if(confirmed!==true || !previewToken) return {ok:false,code:'confirmation-required',error:'請先檢查匯入預覽並確認。'};
       const parsed=core.parseImport(text,{fileName}),plan=await core.planImport(await read(),parsed);
       if(plan.previewToken!==previewToken) return {ok:false,code:'preview-stale',error:'相關本機資料已變更，請重新預覽後確認。'};
+      const usage=await capacity();
+      if(usage && usage.used+plan.summary.estimatedWriteBytes>usage.limit)return {ok:false,code:'insufficient-capacity',error:'預估本機容量不足，尚未寫入任何匯入資料。請先下載完整備份並管理容量。'};
       const entries=Object.entries(plan.writes).sort(([a],[b])=>Number(b.startsWith('msa.import.'))-Number(a.startsWith('msa.import.')));
       const savedKeys=[],failedKeys=[],skippedKeys=plan.items.filter(item=>['identical','identical-copy'].includes(item.status)).map(item=>item.key);
       const importedAt=new Date().toISOString();

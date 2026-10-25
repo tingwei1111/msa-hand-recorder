@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>本機資料庫 · MSA 記錄器</title>
   <link rel="stylesheet" href="../extension/library.css">
+  <link rel="stylesheet" href="../extension/ui-theme.css">
+  <script src="../extension/storage-health.js" defer></script>
   <script src="../extension/library-core.js" defer></script>
     <script src="../extension/recorder-core.js" defer></script>
     <script src="../extension/battle-log-core.js" defer></script>
@@ -15,15 +17,16 @@
     <script src="popup-mock.js" defer></script>
   <script src="../extension/library.js" defer></script>
 </head>
-<body>
-    <div style="padding:7px 12px;text-align:center;background:#e9efdf;color:#374b28;font:11px/1.5 system-ui,sans-serif">介面預覽 · 合成資料，未連線至 MSA；查卡只查詢官方公開卡片來源</div>
+<body data-view="library">
+    <div style="padding:7px 12px;text-align:center;background:#1a293b;color:#b9c9df;font:11px/1.5 system-ui,sans-serif">介面預覽 · 合成資料，未連線至 MSA；查卡只查詢官方公開卡片來源</div>
   <header class="page-header">
-    <div><p class="eyebrow">MSA HAND RECORDER · LOCAL LIBRARY</p><h1>把對局留在自己手上</h1><p>備份、牌組版本與人工確認的個人戰績，全部保存在這個瀏覽器。</p></div>
+    <div><p class="eyebrow">MSA <span class="brand-divider">/</span> PERSONAL WORKSPACE <span class="version-tag">0.9</span></p><h1>你的對局，<span class="accent-text">持續累積。</span></h1><p>管理牌組、整理戰績，把每一次練習留下來。</p></div>
     <button id="backup" class="primary" type="button">下載完整備份</button>
   </header>
   <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
-  <nav class="section-nav" aria-label="管理頁章節"><a href="#restore">備份還原</a><a href="#decks">牌組版本</a><a href="#matches">對局綁定</a><a href="#statistics">個人戰績</a></nav>
+  <nav class="section-nav" aria-label="管理頁章節"><a href="#restore">01 <span>備份還原</span></a><a href="#decks">02 <span>牌組版本</span></a><a href="#matches">03 <span>對局綁定</span></a><a href="#statistics">04 <span>個人戰績</span></a><button id="refresh-library" class="secondary" type="button">更新資料</button></nav>
   <main>
+    <section id="storage-health" class="storage-health" aria-label="本機儲存容量" data-level="normal"><div class="row"><div><p class="eyebrow">LOCAL STORAGE</p><strong>你的資料，保存在本機。</strong></div><strong id="storage-label">讀取中…</strong></div><progress id="storage-meter" max="100" value="0" aria-label="已用儲存容量"></progress><p id="storage-note" class="hint"></p></section>
     <section id="restore" class="panel">
       <div class="section-heading"><div><p class="eyebrow">01 / BACKUP & RESTORE</p><h2>備份與匯入</h2></div><p id="workspace-count" class="muted">讀取本機資料中…</p></div>
       <p>完整備份包含對局、註記、牌組版本、人工戰績與匯入原件。錄製設定與小窗位置不會被匯入改動。</p>
@@ -53,6 +56,7 @@
     </section>
     <section id="matches" class="panel">
       <div class="section-heading"><div><p class="eyebrow">03 / MATCH RECORD</p><h2>替對局補上你的確認</h2></div><span class="badge">資料來源：人工確認</span></div>
+      <p id="draft-status" class="draft-status" role="status" hidden>編輯中的草稿已保留；按「保存對局確認」才會正式儲存。</p>
       <p>多段記錄仍是同一場對局。以「對局 ID＋確認的玩家名稱」計算一次，結束標記不會自動變成勝負結果。</p>
       <form id="match-form">
         <label>本機對局記錄<select id="match-session" required></select></label>

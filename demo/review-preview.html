@@ -6,6 +6,7 @@
     <title>MSA 本機對局回顧</title>
     <link rel="stylesheet" href="../extension/review.css">
     <link rel="stylesheet" href="../extension/review-workspace.css">
+    <link rel="stylesheet" href="../extension/ui-theme.css">
     <script src="../extension/recorder-core.js" defer></script>
     <script src="../extension/battle-log-core.js" defer></script>
     <script src="../extension/annotations-core.js" defer></script>
@@ -17,13 +18,13 @@
     <script src="popup-mock.js" defer></script>
     <script src="../extension/review.js" defer></script>
   </head>
-  <body>
-    <div style="padding:7px 12px;text-align:center;background:#e9efdf;color:#374b28;font:11px/1.5 system-ui,sans-serif">介面預覽 · 合成資料，未連線至 MSA；查卡只查詢官方公開卡片來源</div>
+  <body data-view="review">
+    <div style="padding:7px 12px;text-align:center;background:#1a293b;color:#b9c9df;font:11px/1.5 system-ui,sans-serif">介面預覽 · 合成資料，未連線至 MSA；查卡只查詢官方公開卡片來源</div>
     <a class="skip-link" href="#turn-content">跳至選取回合</a>
     <header class="page-header">
       <div class="header-inner">
         <div>
-          <p class="eyebrow">MSA / MATCH REVIEW</p>
+          <p class="eyebrow">MSA <span class="brand-divider">/</span> MATCH REVIEW <span class="version-tag">0.9</span></p>
           <h1>對局回顧</h1>
           <p class="header-description">沿著回合，回看自己的手牌與雙方公開戰況。</p>
         </div>
@@ -52,7 +53,7 @@
           <button id="refresh-review" class="button subtle" type="button">重新整理</button>
         </div>
       </section>
-      <p id="export-format-hint" class="export-hint">HTML 可離線閱讀，保留全部已儲存快照與公開 Log。匯出不受搜尋篩選影響。</p>
+      <div class="export-options"><label><input id="export-saved-only" type="checkbox">直接匯出已存資料</label><p id="export-format-hint" class="export-hint">HTML 可離線閱讀，保留全部已儲存快照與公開 Log。匯出不受搜尋篩選影響。</p></div>
       <div class="merge-control">
         <label><input id="combine-segments" type="checkbox" checked> 合併同對局的相容記錄段落</label>
         <span id="merge-status" class="muted">正在檢查記錄段落。</span>

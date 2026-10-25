@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>MSA 手牌記錄</title>
     <link rel="stylesheet" href="../extension/popup.css">
+    <link rel="stylesheet" href="../extension/ui-theme.css">
+    <script src="../extension/storage-health.js" defer></script>
     <script src="../extension/recorder-core.js" defer></script>
     <script src="../extension/battle-log-core.js" defer></script>
     <script src="../extension/annotations-core.js" defer></script>
@@ -16,13 +18,13 @@
     <script src="popup-mock.js" defer></script>
     <script src="../extension/popup.js" defer></script>
   </head>
-  <body>
-    <div style="padding:7px 12px;text-align:center;background:#e9efdf;color:#374b28;font:11px/1.5 system-ui,sans-serif">介面預覽 · 合成資料，未連線至 MSA；查卡只查詢官方公開卡片來源</div>
+  <body data-view="popup">
+    <div style="padding:7px 12px;text-align:center;background:#1a293b;color:#b9c9df;font:11px/1.5 system-ui,sans-serif">介面預覽 · 合成資料，未連線至 MSA；查卡只查詢官方公開卡片來源</div>
     <header class="masthead">
       <div>
-        <p class="eyebrow">MSA · MATCH RECORDER</p>
+        <p class="eyebrow">MSA <span class="brand-divider">/</span> RECORDER <span class="version-tag">0.9</span></p>
         <h1>我的對局記錄</h1>
-        <p class="subtitle">從手牌觀察，回看每一步。</p>
+        <p class="subtitle">留住每一回合，讀懂下一步。</p>
       </div>
       <span class="local-mark">僅存本機</span>
     </header>
@@ -78,6 +80,11 @@
 
         <div id="session-content" hidden>
           <p id="session-meta" class="micro session-meta"></p>
+          <button id="open-review" class="button primary review-button" type="button">開啟對局回顧</button>
+          <div class="row review-support">
+            <span class="micro">逐回合看手牌與雙方公開出牌</span>
+            <button id="sync-log" class="text-button" type="button">更新 Log</button>
+          </div>
           <dl class="stats" aria-label="已儲存的觀察數量">
             <div><dt>已存手牌快照</dt><dd><span id="snapshot-count">—</span><span class="stat-unit">筆</span></dd></div>
             <div><dt>公開 Log</dt><dd><span id="public-event-count">—</span><span class="stat-unit">筆</span></dd></div>
@@ -86,11 +93,6 @@
           <div class="row coverage-row">
             <p id="log-counts" class="secondary">公開出牌 0 次</p>
             <span id="log-coverage" class="badge unavailable">尚未收錄</span>
-          </div>
-          <button id="open-review" class="button primary review-button" type="button">開啟對局回顧</button>
-          <div class="row review-support">
-            <span class="micro">逐回合看手牌與雙方公開出牌</span>
-            <button id="sync-log" class="text-button" type="button">更新 Log</button>
           </div>
           <details class="coverage-details">
             <summary>查看資料涵蓋範圍</summary>
@@ -148,6 +150,12 @@
           <button id="save-settings" class="button" type="submit">儲存設定</button>
         </form>
       </details>
+      <section id="storage-health" class="storage-health" aria-label="本機儲存容量" data-level="normal">
+        <div class="row"><span class="micro">本機儲存空間</span><strong id="storage-label">讀取中…</strong></div>
+        <progress id="storage-meter" max="100" value="0" aria-label="已用儲存容量"></progress>
+        <p id="storage-note" class="micro"></p>
+        <details class="rescue-details"><summary>儲存遇到問題？</summary><p class="micro">切到原 MSA 分頁，可下載尚未存妥或被隔離的原始觀察。請保持該分頁開啟。</p><button id="download-rescue" class="button" type="button">下載未存資料救援 JSON</button></details>
+      </section>
       <footer>只讀可見頁面 <span aria-hidden="true">·</span> 首次使用，請核對實際手牌張數。</footer>
     </main>
   </body>

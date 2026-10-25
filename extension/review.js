@@ -77,7 +77,7 @@
   function refreshSummary(info) {
     const result = info?.refresh;
     if (!result) return '匯出前會刷新對應對局。請先保持 MSA 分頁開啟，再匯出報告。';
-    const status = result.refreshed ? (result.partial ? '已刷新，仍有部分資料待確認' : '已完成匯出前刷新') : '未能確認刷新，使用既有資料';
+    const status = result.code==='saved-only'?'已選擇匯出本機已存資料':result.refreshed ? (result.partial ? '已刷新，仍有部分資料待確認' : '已完成匯出前刷新') : '未能確認刷新，使用既有資料';
     return `${status}${result.reason ? `：${result.reason}` : ''}。${info.storageReadAt ? `本機資料讀取於 ${dateText(info.storageReadAt)}。` : ''}`;
   }
 
@@ -97,6 +97,7 @@
       'hands-csv': '匯出手牌 CSV', 'events-csv': '匯出事件 CSV', 'combined-csv': '匯出整合 CSV' };
     $('download-review').textContent = exportInProgress ? '正在準備匯出…' : labels[$('export-format').value] || '匯出報告';
     $('download-review').setAttribute('aria-busy', String(exportInProgress));
+    if($('export-saved-only'))$('export-saved-only').disabled=exportInProgress;
     document.querySelector('.session-bar')?.setAttribute('aria-busy', String(exportInProgress));
   }
 
@@ -583,15 +584,15 @@
   $('download-review').addEventListener('click', async () => {
     if (!session || exportInProgress) return;
     const selection = { id: selectedId, gameId: session.gameId, playerName: session.playerName || '',
-      combine: $('combine-segments').checked, format: $('export-format').value };
+      combine: $('combine-segments').checked, format: $('export-format').value,savedOnly:Boolean($('export-saved-only')?.checked) };
     exportInProgress = true;
     loadSequence += 1;
     clearTimeout(reloadTimer);
     for (const id of ['download-review', 'review-session', 'export-format', 'combine-segments', 'refresh-review']) $(id).disabled = true;
     updateExportControls();
-    notice('正在刷新對應 MSA 分頁的手牌與公開 Log；完成後會重新讀取本機資料，再建立匯出檔。');
+    notice(selection.savedOnly?'正在讀取本機已存資料並建立匯出檔…':'正在刷新對應 MSA 分頁的手牌與公開 Log；完成後會重新讀取本機資料，再建立匯出檔。');
     try {
-      const refresh = await prepareExport(selection);
+      const refresh = selection.savedOnly ? {ok:true,refreshed:false,partial:true,code:'saved-only',reason:'未要求刷新 MSA'} : await prepareExport(selection);
       // One storage snapshot after the producer/storage queues finish supplies
       // both the visible report and every byte of this export. Do not re-use
       // the pre-refresh session or silently export another recently saved game.

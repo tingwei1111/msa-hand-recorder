@@ -52,11 +52,13 @@ for path in extension_files:
         raise SystemExit(f"Unexpected extension asset: {path.relative_to(ROOT)}")
 files = [path for path in extension_files if path.is_file()]
 files += [ROOT / name for name in [
-    "README.md", "README.en.md", "CHANGELOG.md", "docs/使用教學.md", "docs/user-guide.en.md",
-    "docs/card-sources.md", "docs/card-sources.en.md", "docs/Rust-Wasm.md", "docs/Rust-Wasm.en.md", "docs/sharing.md",
+    "README.md", "README.en.md", "CHANGELOG.md", "LICENSE", "CONTRIBUTING.md", "THIRD_PARTY_NOTICES.md", "docs/使用教學.md", "docs/user-guide.en.md",
+    "docs/card-sources.md", "docs/card-sources.en.md", "docs/Rust-Wasm.md", "docs/Rust-Wasm.en.md", "docs/sharing.md", "docs/v0.9.md",
+    "docs/images/popup-v0.9.png", "docs/images/library-v0.9.png", "docs/images/review-v0.9.png",
     "docs/images/popup-v0.4.jpg", "docs/images/review-v0.4.jpg", "docs/images/live-panel-v0.5.jpg",
     "docs/images/live-panel-v0.6.jpg", "docs/images/library-v0.6.jpg", "docs/images/deck-tracker-v0.7.jpg"
 ]]
+files += sorted(path for path in (ROOT / "third_party/licenses").rglob("*") if path.is_file())
 for script in manifest["content_scripts"][0]["js"]:
     if not (ROOT / "extension" / script).is_file():
         raise SystemExit(f"Missing content script: {script}")

@@ -18,3 +18,6 @@ msa-review-*.html
 msa-review-*.json
 msa-hand-*.json
 msa-hand-*.csv
+
+# Local browser checks and screenshots; public examples live under docs/images.
+output/

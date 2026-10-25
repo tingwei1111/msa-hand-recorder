@@ -8,7 +8,7 @@
   'use strict';
   const listeners=new Set();
   const wire=common?require('./deck-tracker-wire.js'):root.MSADeckTrackerWire;
-  let state='loading',failure='',wasm;
+  let state='loading',failure='',wasm,lastInput='',lastOutput='';
   function engineStatus(){return {engine:'rust-wasm',state,...(failure?{reason:failure}:{})};}
   function changed(){for(const listener of listeners){try{listener(engineStatus());}catch(_){/* A view cannot prevent other subscribers from updating. */}}}
   function initialize(bytes,bindings){
@@ -42,7 +42,15 @@
   function project(input={}){
     if(state!=='ready')throw new Error(state==='loading'?'牌組核心載入中。':failure||'牌組核心無法使用。');
     if(input===null)throw new TypeError('牌組投影輸入不可為 null。');
-    return wire.decode(JSON.parse(wasm.project_wire_json(JSON.stringify(wire.encode(wire.projectionInput(input))))));
+    const encoded=JSON.stringify(wire.encode(wire.projectionInput(input)));
+    // Health/status-only updates share the same projection input. Reuse the
+    // exact wire result; decode afresh so callers cannot mutate the cache.
+    if(encoded===lastInput && lastOutput)return wire.decode(JSON.parse(lastOutput));
+    const output=wasm.project_wire_json(encoded);
+    const result=wire.decode(JSON.parse(output));
+    if(encoded.length<=4*1024*1024){lastInput=encoded;lastOutput=output;}
+    else{lastInput='';lastOutput='';}
+    return result;
   }
   function subscribe(listener){
     if(typeof listener!=='function')throw new TypeError('Engine listener must be a function');
