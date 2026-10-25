@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "rustVersion": "1.99.1",
+  "wasmBindgenVersion": "0.2.90",
+  "binarySha256": "3955f59003a4416b3a1c776b0ce38267449baf0b9594c9f9a7541fef757b70da"
+}

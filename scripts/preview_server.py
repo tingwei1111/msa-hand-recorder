@@ -33,6 +33,20 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
+        if urlsplit(self.path).path == '/extension/wasm/deck_tracker_bg.wasm':
+            mode = getattr(self.server, 'wasm_mode', 'ready')
+            if mode == 'missing':
+                return self.json_response({'error':'Synthetic missing Wasm'},404)
+            if mode == 'delay':
+                time.sleep(3)
+            if mode == 'corrupt':
+                data = b'Synthetic corrupt Wasm'
+                self.send_response(200)
+                self.send_header('Content-Type','application/wasm')
+                self.send_header('Content-Length',str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
         if urlsplit(self.path).path != '/__msa_preview/card':
             return super().do_GET()
         allowed_hosts = {f'127.0.0.1:{self.server.server_port}', f'localhost:{self.server.server_port}'}
@@ -88,8 +102,10 @@ class Handler(SimpleHTTPRequestHandler):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port', type=int, default=8768)
+    parser.add_argument('--wasm-mode', choices=['ready','delay','missing','corrupt'], default='ready')
     args = parser.parse_args()
     server = ThreadingHTTPServer(('127.0.0.1', args.port), Handler)
+    server.wasm_mode = args.wasm_mode
     print(f'Synthetic previews: http://127.0.0.1:{args.port}/demo/index.html', flush=True)
     try:
         server.serve_forever()

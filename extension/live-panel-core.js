@@ -198,8 +198,16 @@
       publicEventCount:events.length, publicPlayCount:plays.length, recentPlays, coverageLabel, coverageTone,
       captureIssues, handDelta,healthAlerts:copy(Array.isArray(context.healthAlerts)?context.healthAlerts:[]),
       endObserved:Boolean(context.endObserved),statusLabel:'等待已存資料', statusTone:'neutral', statusDetail:''};
-    if (tracker?.project) model.deckTracker = tracker.project({values,context,handModel:hand,events,
-      players:[...knownPlayers],coverage});
+    if (tracker?.project) {
+      try { model.deckTracker = tracker.project({values,context,handModel:hand,events,players:[...knownPlayers],coverage}); }
+      catch (_) {
+        const engine=tracker.engineStatus?.();
+        const loading=engine?.state==='loading';
+        model.deckTracker={state:loading?'loading':'error',gameId,playerName,contextKey:currentId,sessionId:null,canBind:false,
+          deck:null,availableDecks:[],rows:[],publicCards:{own:[],opponent:[],unknown:[],tokens:[]},warnings:[],
+          stateDetail:loading?'牌組核心載入中；手牌與公開 Log 照常記錄。':'牌組資料核心暫時無法使用，請重新載入擴充功能後重整 MSA；既有手牌與 Log 仍保留。'};
+      }
+    }
     const pending = count(context.pendingCount) || 0, writeError = text(context.writeError).trim();
     const details = [];
     if (writeError) {

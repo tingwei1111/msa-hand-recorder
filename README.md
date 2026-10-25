@@ -4,9 +4,9 @@
 
 **[版本下載頁](https://github.com/tingwei1111/msa-hand-recorder/releases)** · [完整使用教學](docs/使用教學.md) · [版本紀錄](CHANGELOG.md)
 
-本文件說明 **v0.7.0 公開測試版（Prerelease）**；安裝檔以 Releases 實際提供的版本為準。**尚未完成真人整場對戰的端到端驗證**，請先用測試對局人工核對卡號、張數、回合與公開 Log。
+本文件說明 **v0.8.0 公開測試版（Prerelease）**；安裝檔以 Releases 實際提供的版本為準。牌組追蹤計算改由本機 Rust／WebAssembly 核心執行，既有 Chrome 操作方式與備份格式保留。**尚未完成真人整場對戰的端到端驗證**，請先用測試對局人工核對卡號、張數、回合與公開 Log。
 
-## v0.7.0 可以做什麼
+## v0.8.0 可以做什麼
 
 | 功能 | 使用方式與界線 |
 | --- | --- |
@@ -29,15 +29,23 @@
 
 ![v0.6 本機資料庫：備份還原、牌組版本與戰績](docs/images/library-v0.6.jpg)
 
+## Rust／WebAssembly 改寫範圍
+
+`deck-tracker-core.js` 現為載入與相容橋接器；牌組版本選擇、手牌數量分類、雙方公開使用彙整、Token 分列與版本戰績由 Rust 編譯的 WebAssembly 計算。畫面讀取、小窗、Chrome 儲存與公開 Log 收錄仍沿用既有流程。
+
+引擎載入中或失敗時，牌組分頁會明確顯示狀態並暫停牌組綁定；原本的手牌／公開事件記錄與備份功能仍可使用，不會把引擎失敗當成空手或零次出牌。沒有自動切回舊版 JavaScript 計算的隱藏備援。
+
+既有對局、筆記、牌組、人工戰績及 JSON／HTML 備份沿用原資料格式，不需轉換資料庫。跨語言傳輸只用於當次計算，不會加入存檔。此改寫不保證速度提升，也不能補回未觀察到的手牌。開發與驗證方式見 [Rust／Wasm 說明](docs/Rust-Wasm.md)。
+
 ## 安裝到 Chrome
 
-1. 從 [Releases](https://github.com/tingwei1111/msa-hand-recorder/releases) 的 **Assets** 下載版本 ZIP，例如 `msa-hand-recorder-v0.7.0.zip`；原始碼也可由專案首頁 **Code → Download ZIP** 取得。
+1. 從 [Releases](https://github.com/tingwei1111/msa-hand-recorder/releases) 的 **Assets** 下載版本 ZIP，例如 `msa-hand-recorder-v0.8.0.zip`；原始碼也可由專案首頁 **Code → Download ZIP** 取得。
 2. 解壓到會保留的固定資料夾；不要直接載入 ZIP，安裝後也不要移動或刪除資料夾。
 3. 在 Chrome 開啟 `chrome://extensions`，啟用「開發人員模式」。
 4. 按「載入未封裝項目」，選擇解壓後的 **`extension` 子資料夾**。
 5. 釘選「MSA 手牌記錄器」，並在開局前重新整理 MSA 分頁。
 
-一般使用不需要 Node.js。官方卡片查詢沿用 `www.gundam-gcg.com` 網站權限；完整牌組追蹤不需要新增權限或 MSA 私有後端存取。
+一般使用不需要 Node.js、Rust 或另外安裝 WebAssembly 執行環境。安裝包附帶本機 Wasm 程式。官方卡片查詢沿用 `www.gundam-gcg.com` 網站權限；此改寫不新增網站權限或 MSA 私有後端存取。
 
 ## 一場對局怎麼用
 
@@ -90,9 +98,11 @@
 
 ## 本機開發與合成預覽
 
-開發環境需要 Node.js 22 以上與 Python 3，沒有外部 npm 依賴。
+檢視合成預覽需要 Node.js 22 以上與 Python 3，沒有外部 npm 依賴。重建牌組核心另需 Rust、`wasm32-unknown-unknown` target 與符合專案鎖定版本的 `wasm-bindgen` CLI；步驟見 [Rust／Wasm 說明](docs/Rust-Wasm.md)。
 
 ```sh
+npm run build:wasm
+npm run test:rust
 npm test
 npm run preview
 ```

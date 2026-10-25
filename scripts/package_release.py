@@ -18,16 +18,41 @@ if manifest.get("host_permissions") != ["https://www.gundam-gcg.com/*"]:
     raise SystemExit("Only the reviewed public official-card host is allowed")
 if manifest.get("optional_host_permissions") or manifest.get("optional_permissions"):
     raise SystemExit("Review optional permission changes before packaging")
+wasm_path = ROOT / "extension/wasm/deck_tracker_bg.wasm"
+expected_wasm_resources = [{
+    "resources": ["wasm/deck_tracker_bg.wasm"],
+    "matches": ["https://mobilesuitarena.com/*"],
+}]
+if manifest.get("web_accessible_resources") != expected_wasm_resources:
+    raise SystemExit("Only the exact packaged Wasm resource may be exposed to MSA")
+
+build_info_path = ROOT / "extension/wasm/build-info.json"
+if not wasm_path.is_file() or wasm_path.is_symlink() or not build_info_path.is_file() or build_info_path.is_symlink():
+    raise SystemExit("Missing/unsafe Rust/Wasm build artifacts")
+binary = wasm_path.read_bytes()
+if binary[:8] != b"\0asm\x01\0\0\0":
+    raise SystemExit("Invalid Wasm magic or binary version")
+if re.search(rb"/(?:Users|home)/[^\x00\r\n/]+/", binary):
+    raise SystemExit("Wasm contains a local user path; rebuild with stable remapped paths")
+try:
+    build_info = json.loads(build_info_path.read_text(encoding="utf-8"))
+except (ValueError, UnicodeError) as error:
+    raise SystemExit("Invalid Rust/Wasm build metadata") from error
+if (not isinstance(build_info, dict) or build_info.get("schemaVersion") != 1
+        or build_info.get("rustVersion") != "1.99.1"
+        or build_info.get("wasmBindgenVersion") != "0.2.90"
+        or build_info.get("binarySha256") != hashlib.sha256(binary).hexdigest()):
+    raise SystemExit("Rust/Wasm build metadata or binary SHA-256 mismatch")
 
 extension_files = sorted((ROOT / "extension").rglob("*"))
 for path in extension_files:
     if path.is_symlink():
         raise SystemExit(f"Refusing symlink: {path.relative_to(ROOT)}")
-    if path.is_file() and path.suffix not in {".js", ".json", ".html", ".css"}:
+    if path.is_file() and path.suffix not in {".js", ".json", ".html", ".css"} and path != wasm_path:
         raise SystemExit(f"Unexpected extension asset: {path.relative_to(ROOT)}")
 files = [path for path in extension_files if path.is_file()]
 files += [ROOT / name for name in [
-    "README.md", "CHANGELOG.md", "docs/使用教學.md", "docs/card-sources.md",
+    "README.md", "CHANGELOG.md", "docs/使用教學.md", "docs/card-sources.md", "docs/Rust-Wasm.md",
     "docs/images/popup-v0.4.jpg", "docs/images/review-v0.4.jpg", "docs/images/live-panel-v0.5.jpg",
     "docs/images/live-panel-v0.6.jpg", "docs/images/library-v0.6.jpg", "docs/images/deck-tracker-v0.7.jpg"
 ]]

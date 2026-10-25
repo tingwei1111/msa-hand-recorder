@@ -1,0 +1,22 @@
+[package]
+name = "msa-deck-tracker-core"
+version.workspace = true
+# wasm-bindgen 0.2.90's generated extern blocks predate Rust 2024's unsafe-extern requirement.
+edition = "2021"
+rust-version.workspace = true
+description = "Pure lossless projection of locally observed MSA deck tracker data"
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# The generated glue must match the locally installed and CI build CLI.
+wasm-bindgen.workspace = true
+
+[lints]
+workspace = true

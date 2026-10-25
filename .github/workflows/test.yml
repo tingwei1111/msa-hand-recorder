@@ -9,6 +9,26 @@ permissions:
   contents: read
 
 jobs:
+  rust:
+    runs-on: ubuntu-latest
+    env:
+      RUSTUP_TOOLCHAIN: "1.99.1"
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy --target wasm32-unknown-unknown
+      - run: cargo fmt --check
+      - run: cargo clippy --locked --all-targets --all-features -- -D warnings
+      - run: cargo test --locked
+      - run: cargo doc --locked --no-deps
+      - run: cargo check --locked --target wasm32-unknown-unknown -p msa-deck-tracker-core
+      - name: Install matching Wasm binding tool
+        # Pin the CLI ABI while resolving its tool-only dependencies for this Rust.
+        # Application dependencies remain fixed by Cargo.lock and --locked.
+        run: cargo install wasm-bindgen-cli --version 0.2.90
+      - name: Verify generated Wasm assets against a fresh build
+        run: python3 scripts/build_wasm.py --check
   test:
     runs-on: ubuntu-latest
     strategy:

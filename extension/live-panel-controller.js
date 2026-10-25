@@ -86,7 +86,7 @@
       model.canReview = Boolean(model.sessionId && cache[PREFIX + model.sessionId]?.gameId === ctx.gameId);
       model.canBookmark = Boolean(loaded && !readError && ctx.playerName && model.latestSnapshot?.id &&
         cache[PREFIX + contextKey(ctx)]?.playerName === ctx.playerName);
-      if (model.deckTracker) model.deckTracker.canBind = model.canBookmark;
+      if (model.deckTracker) model.deckTracker.canBind = Boolean(model.canBookmark && model.deckTracker.canBind);
       model.preferenceError = preferenceError;
       if (readError || !loaded) {
         model = {...model, latestSnapshot:null, handCards:[], recentPlays:[], snapshotCount:0,
@@ -260,6 +260,7 @@
       if (relevant) scheduleRender();
     }
     storage.onChanged.addListener(changed);
+    const unsubscribeEngine=options.tracker?.subscribe?.(()=>{if(!disposed)sync();});
     return {
       sync,
       show() {
@@ -272,6 +273,7 @@
       destroy() {
         if (disposed) return;
         unmount(); disposed = true;
+        unsubscribeEngine?.();
         storage.onChanged.removeListener?.(changed);
       }
     };

@@ -23,6 +23,7 @@
     try {
       if (!livePanelController) livePanelController = MSALivePanelController.create({
         storage:chrome.storage,
+        tracker:globalThis.MSADeckTrackerCore,
         getContext:() => current && sameContext(current) ? {
           gameId:current.gameId,runId:current.runId,playerName:current.playerName,
           enabled:settings.enabled,pendingCount:current.writer.state().pendingCount,

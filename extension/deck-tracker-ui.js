@@ -215,7 +215,7 @@
       });
       for (const [key, item] of deckRows) if (!present.has(key)) { item.root.remove(); deckRows.delete(key); }
       listHeading.hidden = !entries.length; list.hidden = !entries.length; empty.hidden = entries.length > 0;
-      setText(empty, model.state === 'identity-unknown' ? '尚未確認本人玩家，請先核對自己的手牌身分。' :
+      setText(empty, model.state === 'loading' ? '牌組資料載入中，手牌與公開事件仍可切換查看。' : model.state === 'error' ? '請重新載入擴充功能後重整 MSA；不會改寫已有對局資料。' : model.state === 'identity-unknown' ? '尚未確認本人玩家，請先核對自己的手牌身分。' :
         model.state === 'invalid' ? '目前綁定或來源待核對；請到牌組管理檢查。' : '選擇並確認本場牌組後，這裡會顯示完整牌表。');
     }
     function updatePublic() {
@@ -253,7 +253,7 @@
       if (nextKey !== contextKey) { contextKey = nextKey; generation += 1; draft = ''; binding = false; managing = false; previousState = ''; say(''); }
       const bound = model.state === 'bound' && model.deck && text(model.deck.id);
       element.dataset.state = text(model.state);
-      setText(title, bound ? text(model.deck.name) || '未命名牌組' : '本場尚未選擇牌組');
+      setText(title, bound ? text(model.deck.name) || '未命名牌組' : model.state === 'loading' ? '牌組核心載入中' : model.state === 'error' ? '牌組核心無法使用' : '本場尚未選擇牌組');
       setText(meta, (text(model.playerName) ? '玩家 ' + model.playerName : '本人身分待確認') + (bound ? ' · 主牌 ' + countText(model.deck.mainCount) + ' 張 · 版本 ' + model.deck.id.slice(-12) : ''));
       const stats = model.stats || {}, wins = amount(stats.wins), losses = amount(stats.losses), concedes = amount(stats.concedes), confirmed = amount(stats.confirmed);
       setText(rate, typeof stats.winRate === 'number' && Number.isFinite(stats.winRate) && stats.winRate >= 0 && stats.winRate <= 1 ? (stats.winRate * 100).toFixed(1) + '%' : '—');

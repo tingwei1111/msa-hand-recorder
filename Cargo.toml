@@ -1,0 +1,29 @@
+[workspace]
+members = ["crates/deck-tracker-core"]
+resolver = "3"
+
+[workspace.package]
+version = "0.8.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["unbounded_depth"] }
+# The generated ABI must match the reviewed build-tool version.
+wasm-bindgen = "=0.2.90"
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "warn"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+debug = 0

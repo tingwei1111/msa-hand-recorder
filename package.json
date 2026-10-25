@@ -1,11 +1,13 @@
 {
   "name": "msa-hand-recorder",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "description": "Chrome extension for local MSA hand snapshots and public Battle Log review",
   "engines": {"node": ">=22"},
   "scripts": {
     "test": "node --test tests/*.test.cjs",
+    "build:wasm": "python3 scripts/build_wasm.py",
+    "test:rust": "cargo fmt --check && cargo clippy --locked --all-targets --all-features -- -D warnings && cargo test --locked && cargo doc --locked --no-deps",
     "preview:sync": "python3 scripts/sync_previews.py",
     "preview": "python3 scripts/preview_server.py",
     "package": "python3 scripts/package_release.py"

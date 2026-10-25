@@ -32,10 +32,13 @@ const row=(model,code)=>model.rows.find(item=>item.cardCode===code);
 const play=(cardCode='GD99-001',actor=PLAYER,overrides={})=>({action:'deploy-unit',isPlay:true,actor,primaryCard:{cardCode,name:'Synthetic unit'},sourceZone:'unknown',...overrides});
 function freeze(value) {Object.freeze(value);for(const child of Object.values(value))if(child&&typeof child==='object')freeze(child);return value;}
 
-test('browser and CommonJS APIs work without Chrome, storage writes or network',()=>{
+test('CommonJS uses packaged Wasm without Chrome or network, and the browser facade waits for initialization',()=>{
   assert.equal(globalThis.MSADeckTrackerCore,tracker);
   const realm=vm.createContext({});vm.runInContext(fs.readFileSync(require.resolve('../extension/deck-tracker-core.js'),'utf8'),realm);
-  assert.equal(typeof realm.MSADeckTrackerCore.project,'function');assert.equal(realm.MSADeckTrackerCore.project().state,'identity-unknown');
+  assert.equal(typeof realm.MSADeckTrackerCore.project,'function');
+  assert.equal(realm.MSADeckTrackerCore.engineStatus().state,'loading');
+  assert.throws(()=>realm.MSADeckTrackerCore.project(),/載入中/);
+  assert.deepEqual(tracker.engineStatus(),{engine:'rust-wasm',state:'ready'});
   const args=freeze(input()),before=JSON.stringify(args),model=tracker.project(args);
   model.rows[0].deckCount=99;model.availableDecks[0].name='Changed';assert.equal(JSON.stringify(args),before);
 });
