@@ -1,0 +1,8 @@
+{
+  "extensionName": {
+    "message": "MSA 手牌记录器"
+  },
+  "extensionDescription": {
+    "message": "在本机整合 MSA 自己的手牌、双方公开出牌与 Battle Log，按回合查看并导出赛后分析资料。"
+  }
+}

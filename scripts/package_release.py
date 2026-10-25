@@ -4,9 +4,11 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import subprocess
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
+subprocess.run(["python3", str(ROOT / "scripts/build_i18n.py"), "--check"], check=True)
 manifest = json.loads((ROOT / "extension/manifest.json").read_text(encoding="utf-8"))
 package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
 version = manifest["version"]
@@ -53,7 +55,8 @@ for path in extension_files:
 files = [path for path in extension_files if path.is_file()]
 files += [ROOT / name for name in [
     "README.md", "README.en.md", "CHANGELOG.md", "LICENSE", "CONTRIBUTING.md", "THIRD_PARTY_NOTICES.md", "docs/使用教學.md", "docs/user-guide.en.md",
-    "docs/card-sources.md", "docs/card-sources.en.md", "docs/Rust-Wasm.md", "docs/Rust-Wasm.en.md", "docs/sharing.md", "docs/v0.9.md",
+    "docs/card-sources.md", "docs/card-sources.en.md", "docs/Rust-Wasm.md", "docs/Rust-Wasm.en.md", "docs/sharing.md", "docs/v0.9.md", "docs/v0.10.md",
+    "docs/images/popup-v0.10-en.png", "docs/images/popup-v0.10-zh-CN.png", "docs/images/review-v0.10-en.png", "docs/images/library-v0.10-en.png",
     "docs/images/popup-v0.9.png", "docs/images/library-v0.9.png", "docs/images/review-v0.9.png",
     "docs/images/popup-v0.4.jpg", "docs/images/review-v0.4.jpg", "docs/images/live-panel-v0.5.jpg",
     "docs/images/live-panel-v0.6.jpg", "docs/images/library-v0.6.jpg", "docs/images/deck-tracker-v0.7.jpg"

@@ -1,0 +1,8 @@
+{
+  "extensionName": {
+    "message": "MSA Hand Recorder"
+  },
+  "extensionDescription": {
+    "message": "Save your visible MSA hand and both players’ public Battle Log locally. Review each turn and export match reports."
+  }
+}

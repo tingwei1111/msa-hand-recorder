@@ -5,6 +5,8 @@
   if (root) root.MSALivePanelController = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
+  const l10n = (source, ...values) => globalThis.MSAI18n ? globalThis.MSAI18n.t(source, ...values) : String(source ?? '').replace(/\{(\d+)\}/g, (match, index) => index < values.length ? String(values[index] ?? '') : match);
+
   const PREFERENCE_KEY = 'msa.livePanel';
   const PREFIX = 'msa.session.';
   const NOTE_PREFIX = 'msa.note.';
@@ -81,7 +83,7 @@
       try { model = project(cache, ctx); }
       catch (error) {
         model = {gameId:ctx.gameId, sessionId:null, handCards:[], recentPlays:[], captureIssues:[],
-          statusTone:'error', statusLabel:'無法整理已存記錄', statusDetail:String(error?.message || error)};
+          statusTone:'error', statusLabel:l10n('無法整理已存記錄'), statusDetail:String(error?.message || error)};
       }
       model.canReview = Boolean(model.sessionId && cache[PREFIX + model.sessionId]?.gameId === ctx.gameId);
       model.canBookmark = Boolean(loaded && !readError && ctx.playerName && model.latestSnapshot?.id &&
@@ -91,11 +93,11 @@
       if (readError || !loaded) {
         model = {...model, latestSnapshot:null, handCards:[], recentPlays:[], snapshotCount:0,
           publicEventCount:0, publicPlayCount:0, canReview:false, canBookmark:false,
-          handDelta:{comparable:false,added:[],removed:[],reason:'尚未確認已存觀察'},
+          handDelta:{comparable:false,added:[],removed:[],reason:l10n('尚未確認已存觀察')},
           deckTracker:{state:'identity-unknown',playerName:ctx.playerName || '',availableDecks:[],rows:[],canBind:false,
-            warnings:readError?['本機記錄讀取失敗，未使用先前的牌組或計數。']:[],publicCards:{own:[],opponent:[],unknown:[],tokens:[]}},
-          statusTone:readError ? 'error' : 'neutral', statusLabel:readError ? '本機記錄讀取失敗' : '讀取本場記錄中…',
-          statusDetail:readError || '小窗只會顯示本場已確認存入的資料。'};
+            warnings:readError?[l10n('本機記錄讀取失敗，未使用先前的牌組或計數。')]:[],publicCards:{own:[],opponent:[],unknown:[],tokens:[]}},
+          statusTone:readError ? 'error' : 'neutral', statusLabel:readError ? l10n('本機記錄讀取失敗') : l10n('讀取本場記錄中…'),
+          statusDetail:readError || l10n('小窗只會顯示本場已確認存入的資料。')};
       }
       view.update(model);
     }
@@ -118,7 +120,7 @@
           await storage.local.set({[PREFERENCE_KEY]:merged}); preferenceError = '';
           if (!disposed && revision === preferenceRevision) { prefs = merged; view?.setPreferences(prefs); }
         }
-        catch (error) { preferenceError = `小窗顯示偏好未儲存：${String(error?.message || error)}`; }
+        catch (error) { preferenceError = l10n("小窗顯示偏好未儲存：{0}", String(error?.message || error)); }
         finally { pendingPreferences -= 1; if (!disposed) scheduleRender(); }
       });
     }
@@ -148,14 +150,14 @@
     }
     function refresh(token) {
       const ctx = actionContext(token);
-      if (!ctx) return Promise.resolve({ok:false,refreshed:false,reason:'對局已切換，請在目前小窗重新操作。'});
+      if (!ctx) return Promise.resolve({ok:false,refreshed:false,reason:l10n('對局已切換，請在目前小窗重新操作。')});
       if (refreshing?.token === token) return refreshing.promise;
       const operation = {token, promise:null};
       operation.promise = Promise.resolve().then(() => {
-        if (!matches(token, ctx, true)) return {ok:false,refreshed:false,reason:'對局或玩家已切換。'};
+        if (!matches(token, ctx, true)) return {ok:false,refreshed:false,reason:l10n('對局或玩家已切換。')};
         return options.onCapture(ctx);
       }).then(result => {
-        if (!matches(token, ctx, true)) return {ok:false,refreshed:false,reason:'對局或玩家已切換，沒有套用舊更新結果。'};
+        if (!matches(token, ctx, true)) return {ok:false,refreshed:false,reason:l10n('對局或玩家已切換，沒有套用舊更新結果。')};
         if (readError && !loading) read(ctx, token);
         render();
         return result;
@@ -166,44 +168,44 @@
     }
     function review(token) {
       const ctx = actionContext(token);
-      if (!ctx) return Promise.resolve({ok:false,reason:'對局已切換，請在目前小窗重新操作。'});
+      if (!ctx) return Promise.resolve({ok:false,reason:l10n('對局已切換，請在目前小窗重新操作。')});
       const id = contextKey(ctx), session = cache[PREFIX + id];
-      if (!session || session.gameId !== ctx.gameId) return Promise.resolve({ok:false,reason:'本段還沒有已存記錄。'});
-      if (session.snapshots?.length && (!ctx.playerName || session.playerName !== ctx.playerName)) return Promise.resolve({ok:false,reason:'本段手牌玩家來源不符。'});
+      if (!session || session.gameId !== ctx.gameId) return Promise.resolve({ok:false,reason:l10n('本段還沒有已存記錄。')});
+      if (session.snapshots?.length && (!ctx.playerName || session.playerName !== ctx.playerName)) return Promise.resolve({ok:false,reason:l10n('本段手牌玩家來源不符。')});
       return Promise.resolve().then(() => {
-        if (!matches(token, ctx, true)) return {ok:false,reason:'對局或玩家已切換。'};
+        if (!matches(token, ctx, true)) return {ok:false,reason:l10n('對局或玩家已切換。')};
         return options.onReview({...ctx,sessionId:id});
-      }).then(result => matches(token, ctx, true) ? result : {ok:false,reason:'對局已切換。'})
+      }).then(result => matches(token, ctx, true) ? result : {ok:false,reason:l10n('對局已切換。')})
         .catch(error => ({ok:false,reason:String(error?.message || error)}));
     }
     function bookmark(token, payload) {
       const ctx = actionContext(token), source = ctx && cache[PREFIX + contextKey(ctx)];
       if (!ctx || !loaded || readError || !ctx.playerName || !source || source.playerName !== ctx.playerName) {
-        return Promise.resolve({ok:false,reason:'目前沒有來源相符的已存本人快照。'});
+        return Promise.resolve({ok:false,reason:l10n('目前沒有來源相符的已存本人快照。')});
       }
       const snapshot = source.snapshots?.find(item => item.id === payload?.snapshotId);
-      if (!snapshot) return Promise.resolve({ok:false,reason:'快照不在目前記錄段落，未建立書籤。'});
-      if (typeof options.onBookmark !== 'function') return Promise.resolve({ok:false,reason:'書籤服務尚未載入。'});
+      if (!snapshot) return Promise.resolve({ok:false,reason:l10n('快照不在目前記錄段落，未建立書籤。')});
+      if (typeof options.onBookmark !== 'function') return Promise.resolve({ok:false,reason:l10n('書籤服務尚未載入。')});
       const anchored = {snapshotId:snapshot.id,turn:snapshot.turn ?? null,turnSource:snapshot.turnSource || 'unknown',
         observedTurn:snapshot.observedTurn ?? null,note:String(payload.note || '').slice(0,500),tag:String(payload.tag || '').slice(0,40)};
       return Promise.resolve().then(() => {
-        if (!matches(token, ctx, true)) return {ok:false,reason:'對局或玩家已切換，未建立書籤。'};
+        if (!matches(token, ctx, true)) return {ok:false,reason:l10n('對局或玩家已切換，未建立書籤。')};
         return options.onBookmark({...ctx,sessionId:contextKey(ctx)}, anchored);
-      }).then(result => matches(token,ctx,true) ? result : {ok:false,reason:'對局已切換，請到原對局回顧確認書籤結果。'})
+      }).then(result => matches(token,ctx,true) ? result : {ok:false,reason:l10n('對局已切換，請到原對局回顧確認書籤結果。')})
         .catch(error => ({ok:false,reason:String(error?.message || error)}));
     }
     function bindDeck(token, payload) {
       const ctx = actionContext(token), source = ctx && cache[PREFIX + contextKey(ctx)];
       if (!ctx || !loaded || readError || !ctx.playerName || !source || source.playerName !== ctx.playerName || !source.snapshots?.length) {
-        return Promise.resolve({ok:false,reason:'請先確認本段已有來源相符的本人手牌。'});
+        return Promise.resolve({ok:false,reason:l10n('請先確認本段已有來源相符的本人手牌。')});
       }
       if (payload?.confirmed !== true || typeof payload.deckVersionId !== 'string' || !cache[DECK_PREFIX + payload.deckVersionId]) {
-        return Promise.resolve({ok:false,reason:'請選擇已保存的牌組版本，再確認綁定。'});
+        return Promise.resolve({ok:false,reason:l10n('請選擇已保存的牌組版本，再確認綁定。')});
       }
-      if (typeof options.onBindDeck !== 'function') return Promise.resolve({ok:false,reason:'本場牌組綁定服務尚未載入。'});
+      if (typeof options.onBindDeck !== 'function') return Promise.resolve({ok:false,reason:l10n('本場牌組綁定服務尚未載入。')});
       return Promise.resolve().then(() => matches(token,ctx,true) ? options.onBindDeck({...ctx,sessionId:contextKey(ctx)},
-        {deckVersionId:payload.deckVersionId,confirmed:true}) : {ok:false,reason:'對局或玩家已切換。'})
-        .then(result => matches(token,ctx,true) ? result : {ok:false,reason:'對局已切換，請到原對局確認綁定結果。'})
+        {deckVersionId:payload.deckVersionId,confirmed:true}) : {ok:false,reason:l10n('對局或玩家已切換。')})
+        .then(result => matches(token,ctx,true) ? result : {ok:false,reason:l10n('對局已切換，請到原對局確認綁定結果。')})
         .catch(error => ({ok:false,reason:String(error?.message || error)}));
     }
     function sync() {
@@ -220,18 +222,18 @@
           onReview:() => review(token),
           onBookmark:payload => bookmark(token,payload),
           onBindDeck:payload => bindDeck(token,payload),
-          onCardLookup:code => actionContext(token) && typeof options.onCardLookup === 'function' ? options.onCardLookup(code) : Promise.resolve({status:'error',cardCode:code,reason:'卡片查詢服務尚未載入，或對局已切換。'}),
+          onCardLookup:code => actionContext(token) && typeof options.onCardLookup === 'function' ? options.onCardLookup(code) : Promise.resolve({status:'error',cardCode:code,reason:l10n('卡片查詢服務尚未載入，或對局已切換。')}),
           onDismissAlert:code => {
             const ctx = actionContext(token);
-            if (!ctx || typeof options.onDismissAlert !== 'function') return Promise.resolve({ok:false,reason:'目前無法更新提醒狀態。'});
-            return Promise.resolve().then(() => matches(token,ctx,true) ? options.onDismissAlert(ctx,code) : {ok:false,reason:'對局已切換。'});
+            if (!ctx || typeof options.onDismissAlert !== 'function') return Promise.resolve({ok:false,reason:l10n('目前無法更新提醒狀態。')});
+            return Promise.resolve().then(() => matches(token,ctx,true) ? options.onDismissAlert(ctx,code) : {ok:false,reason:l10n('對局已切換。')});
           },
           onManage:() => {
             const ctx = actionContext(token);
-            if (!ctx || typeof options.onManage !== 'function') return Promise.resolve({ok:false,reason:'資料管理服務尚未載入，或對局已切換。'});
+            if (!ctx || typeof options.onManage !== 'function') return Promise.resolve({ok:false,reason:l10n('資料管理服務尚未載入，或對局已切換。')});
             const id=contextKey(ctx), session=cache[PREFIX+id];
             const safe=Boolean(session && session.gameId===ctx.gameId && (!session.snapshots?.length || session.playerName===ctx.playerName));
-            return Promise.resolve().then(() => matches(token,ctx,true) ? options.onManage({...ctx,sessionId:safe?id:null}) : {ok:false,reason:'對局已切換。'});
+            return Promise.resolve().then(() => matches(token,ctx,true) ? options.onManage({...ctx,sessionId:safe?id:null}) : {ok:false,reason:l10n('對局已切換。')});
           }
         });
         view.setPreferences(prefs);
@@ -260,12 +262,13 @@
       if (relevant) scheduleRender();
     }
     storage.onChanged.addListener(changed);
+    const unsubscribeLanguage=globalThis.MSAI18n?.subscribe(()=>{if(!disposed)sync();});
     const unsubscribeEngine=options.tracker?.subscribe?.(()=>{if(!disposed)sync();});
     return {
       sync,
       show() {
         sync();
-        if (!view) return {ok:false,reason:'請先開啟 MSA 對局頁面。'};
+        if (!view) return {ok:false,reason:l10n('請先開啟 MSA 對局頁面。')};
         savePreferences({...prefs,expanded:true}, generation);
         view.focusLauncher?.();
         return {ok:true,opened:true,gameId:context().gameId};
@@ -273,7 +276,7 @@
       destroy() {
         if (disposed) return;
         unmount(); disposed = true;
-        unsubscribeEngine?.();
+        unsubscribeEngine?.();unsubscribeLanguage?.();
         storage.onChanged.removeListener?.(changed);
       }
     };

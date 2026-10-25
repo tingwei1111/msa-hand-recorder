@@ -1,5 +1,5 @@
 'use strict';
-importScripts('recorder-core.js', 'battle-log-core.js', 'diagnostics-core.js', 'annotations-core.js',
+importScripts('i18n-data.js', 'i18n.js', 'recorder-core.js', 'battle-log-core.js', 'diagnostics-core.js', 'annotations-core.js',
   'library-core.js', 'library-store.js', 'card-provider.js');
 const queues = new Map();
 const preparing = new Map();

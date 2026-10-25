@@ -59,3 +59,9 @@ After changing extension HTML, run `npm run preview:sync`. Before a PR, run rele
 Explain the user-facing problem, resulting behavior, and checks actually run. Add synthetic screenshots for UI changes. Preserve player/game/run isolation and the distinction between saved observations, pending data, public-log coverage, and complete live-match validation. Unknown or missing observations must not turn into zero counts or claims of completeness.
 
 Do not commit real matches, exports, credentials, local paths, or generated output/build folders. English and Traditional Chinese are both welcome. Contributions use the project's [MIT License](LICENSE); third-party material retains its own license.
+
+## UI translations / 介面翻譯
+
+Edit `extension/locales/en.json` or `extension/locales/zh-CN.json`. The Traditional Chinese keys are the source messages. Preserve every `{0}`, `{1}` placeholder and meaningful whitespace; do not translate player data or raw Log strings. Run `python3 scripts/build_i18n.py`, `npm test` and `python3 scripts/sync_previews.py --check`. The generated `i18n-data.js` must be committed. Chrome metadata uses separate `_locales/{en,zh_CN,zh_TW}/messages.json` files.
+
+修改英文／簡中字典後，重建 `i18n-data.js` 並執行檢查。只翻譯工具作者提供的介面文字，保留參數及使用者原文。

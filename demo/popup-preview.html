@@ -1,9 +1,7 @@
-<!doctype html>
-<html lang="zh-Hant">
-  <head>
+<!DOCTYPE html><html lang="zh-Hant"><head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>MSA 手牌記錄</title>
+    <title data-i18n="MSA 手牌記錄">MSA 手牌記錄</title>
     <link rel="stylesheet" href="../extension/popup.css">
     <link rel="stylesheet" href="../extension/ui-theme.css">
     <script src="../extension/storage-health.js" defer></script>
@@ -16,99 +14,101 @@
     <script src="../extension/library-store.js" defer></script>
     <script src="workspace-mock.js" defer></script>
     <script src="popup-mock.js" defer></script>
+    <script src="../extension/i18n-data.js" defer></script>
+    <script src="../extension/i18n.js" defer></script>
     <script src="../extension/popup.js" defer></script>
   </head>
   <body data-view="popup">
     <div style="padding:7px 12px;text-align:center;background:#1a293b;color:#b9c9df;font:11px/1.5 system-ui,sans-serif">介面預覽 · 合成資料，未連線至 MSA；查卡只查詢官方公開卡片來源</div>
     <header class="masthead">
       <div>
-        <p class="eyebrow">MSA <span class="brand-divider">/</span> RECORDER <span class="version-tag">0.9</span></p>
-        <h1>我的對局記錄</h1>
-        <p class="subtitle">留住每一回合，讀懂下一步。</p>
+        <p class="eyebrow">MSA <span class="brand-divider">/</span> RECORDER <span class="version-tag">0.10</span></p>
+        <h1 data-i18n="我的對局記錄">我的對局記錄</h1>
+        <p class="subtitle" data-i18n="留住每一回合，讀懂下一步。">留住每一回合，讀懂下一步。</p>
       </div>
-      <span class="local-mark">僅存本機</span>
+      <div class="header-tools"><label class="language-control"><span data-i18n="介面語言">介面語言</span><select data-language-select="" aria-label="介面語言" data-i18n-aria-label="介面語言"><option value="zh-TW" translate="no">繁體中文</option><option value="zh-CN" translate="no">简体中文</option><option value="en" translate="no">English</option></select></label><span class="local-mark" data-i18n="僅存本機">僅存本機</span></div>
     </header>
 
     <main>
       <div id="notice" class="notice" role="status" aria-live="polite" aria-atomic="true" hidden></div>
 
-      <section class="panel recording-panel" aria-label="記錄狀態">
+      <section class="panel recording-panel" aria-label="記錄狀態" data-i18n-aria-label="記錄狀態">
         <div class="row status-row">
           <div class="status-heading">
             <span id="status-dot" class="status-dot" aria-hidden="true"></span>
-            <strong id="recording-label">讀取本機資料中…</strong>
+            <strong id="recording-label" data-i18n="讀取本機資料中…">讀取本機資料中…</strong>
           </div>
           <label class="switch-label">
-            <span id="toggle-label">啟用記錄</span>
-            <input id="recording-enabled" type="checkbox" role="switch" aria-label="啟用自動記錄" disabled>
+            <span id="toggle-label" data-i18n="啟用記錄">啟用記錄</span>
+            <input id="recording-enabled" type="checkbox" role="switch" aria-label="啟用自動記錄" disabled data-i18n-aria-label="啟用自動記錄">
             <span class="switch-track" aria-hidden="true"></span>
           </label>
         </div>
-        <p id="status-summary" class="secondary status-summary">正在確認已儲存的觀察。</p>
-        <button id="show-live-panel" class="button live-panel-button" type="button">顯示對戰側邊小窗 ↗</button>
-        <div class="utility-actions" aria-label="記錄檢查與資料管理">
-          <button id="run-diagnostics" class="button" type="button">記錄自檢</button>
-          <button id="open-library" class="button" type="button">資料與牌組</button>
+        <p id="status-summary" class="secondary status-summary" data-i18n="正在確認已儲存的觀察。">正在確認已儲存的觀察。</p>
+        <button id="show-live-panel" class="button live-panel-button" type="button" data-i18n="顯示對戰側邊小窗 ↗">顯示對戰側邊小窗 ↗</button>
+        <div class="utility-actions" aria-label="記錄檢查與資料管理" data-i18n-aria-label="記錄檢查與資料管理">
+          <button id="run-diagnostics" class="button" type="button" data-i18n="記錄自檢">記錄自檢</button>
+          <button id="open-library" class="button" type="button" data-i18n="資料與牌組">資料與牌組</button>
         </div>
         <details id="diagnostics-panel" class="diagnostics-panel" hidden>
-          <summary>目前分頁自檢結果</summary>
+          <summary data-i18n="目前分頁自檢結果">目前分頁自檢結果</summary>
           <p id="diagnostics-meta" class="micro"></p>
           <ul id="diagnostics-results" class="diagnostics-results" aria-live="polite"></ul>
           <p id="diagnostics-summary" class="micro"></p>
         </details>
         <details id="status-details" class="status-details">
-          <summary>最近分頁回報</summary>
-          <p id="status-message" class="secondary status-message">正在讀取本機資料。</p>
+          <summary data-i18n="最近分頁回報">最近分頁回報</summary>
+          <p id="status-message" class="secondary status-message" data-i18n="正在讀取本機資料。">正在讀取本機資料。</p>
           <p id="status-time" class="micro"></p>
         </details>
       </section>
 
       <section class="panel session-panel" aria-labelledby="session-heading">
         <div class="row section-heading">
-          <h2 id="session-heading">選擇本機對局</h2>
-          <button id="refresh" class="text-button" type="button" aria-label="重新讀取本機記錄">重新整理</button>
+          <h2 id="session-heading" data-i18n="選擇本機對局">選擇本機對局</h2>
+          <button id="refresh" class="text-button" type="button" aria-label="重新讀取本機記錄" data-i18n-aria-label="重新讀取本機記錄" data-i18n="重新整理">重新整理</button>
         </div>
-        <label class="visually-hidden" for="session-select">選擇對局記錄</label>
-        <select id="session-select" disabled><option>載入中…</option></select>
+        <label class="visually-hidden" for="session-select" data-i18n="選擇對局記錄">選擇對局記錄</label>
+        <select id="session-select" disabled><option data-i18n="載入中…">載入中…</option></select>
 
         <div id="empty-state" class="empty-state" hidden>
           <span class="empty-symbol" aria-hidden="true">＋</span>
-          <strong>從下一場開始留下觀察</strong>
-          <p>啟用記錄，並在開局前重新整理 MSA 分頁。手牌顯示後，這裡就會出現對局。</p>
-          <p class="micro">舊對局仍可收錄公開 Log；過去的手牌無法補回。</p>
+          <strong data-i18n="從下一場開始留下觀察">從下一場開始留下觀察</strong>
+          <p data-i18n="啟用記錄，並在開局前重新整理 MSA 分頁。手牌顯示後，這裡就會出現對局。">啟用記錄，並在開局前重新整理 MSA 分頁。手牌顯示後，這裡就會出現對局。</p>
+          <p class="micro" data-i18n="舊對局仍可收錄公開 Log；過去的手牌無法補回。">舊對局仍可收錄公開 Log；過去的手牌無法補回。</p>
         </div>
 
         <div id="session-content" hidden>
           <p id="session-meta" class="micro session-meta"></p>
-          <button id="open-review" class="button primary review-button" type="button">開啟對局回顧</button>
+          <button id="open-review" class="button primary review-button" type="button" data-i18n="開啟對局回顧">開啟對局回顧</button>
           <div class="row review-support">
-            <span class="micro">逐回合看手牌與雙方公開出牌</span>
-            <button id="sync-log" class="text-button" type="button">更新 Log</button>
+            <span class="micro" data-i18n="逐回合看手牌與雙方公開出牌">逐回合看手牌與雙方公開出牌</span>
+            <button id="sync-log" class="text-button" type="button" data-i18n="更新 Log">更新 Log</button>
           </div>
-          <dl class="stats" aria-label="已儲存的觀察數量">
-            <div><dt>已存手牌快照</dt><dd><span id="snapshot-count">—</span><span class="stat-unit">筆</span></dd></div>
-            <div><dt>公開 Log</dt><dd><span id="public-event-count">—</span><span class="stat-unit">筆</span></dd></div>
+          <dl class="stats" aria-label="已儲存的觀察數量" data-i18n-aria-label="已儲存的觀察數量">
+            <div><dt data-i18n="已存手牌快照">已存手牌快照</dt><dd><span id="snapshot-count">—</span><span class="stat-unit" data-i18n="筆">筆</span></dd></div>
+            <div><dt data-i18n="公開 Log">公開 Log</dt><dd><span id="public-event-count">—</span><span class="stat-unit" data-i18n="筆">筆</span></dd></div>
           </dl>
-          <p class="stat-detail">辨識完整 <span id="complete-count">—</span> 筆快照 <span aria-hidden="true">·</span> 回合分組 <span id="turn-count">—</span> 組</p>
+          <p class="stat-detail"><span data-i18n="辨識完整">辨識完整</span> <span id="complete-count">—</span> <span data-i18n="筆快照">筆快照</span> <span aria-hidden="true">·</span> <span data-i18n="回合分組">回合分組</span> <span id="turn-count">—</span> <span data-i18n="組">組</span></p>
           <div class="row coverage-row">
-            <p id="log-counts" class="secondary">公開出牌 0 次</p>
-            <span id="log-coverage" class="badge unavailable">尚未收錄</span>
+            <p id="log-counts" class="secondary" data-i18n="公開出牌 0 次">公開出牌 0 次</p>
+            <span id="log-coverage" class="badge unavailable" data-i18n="尚未收錄">尚未收錄</span>
           </div>
           <details class="coverage-details">
-            <summary>查看資料涵蓋範圍</summary>
-            <p id="log-note" class="micro">匯出前會嘗試更新 Log；請保持對局分頁開啟。</p>
+            <summary data-i18n="查看資料涵蓋範圍">查看資料涵蓋範圍</summary>
+            <p id="log-note" class="micro" data-i18n="匯出前會嘗試更新 Log；請保持對局分頁開啟。">匯出前會嘗試更新 Log；請保持對局分頁開啟。</p>
           </details>
 
           <details id="recent-hand" class="disclosure hand-disclosure">
             <summary>
-              <span>最近一次手牌</span>
-              <span id="quality-badge" class="badge">尚無快照</span>
+              <span data-i18n="最近一次手牌">最近一次手牌</span>
+              <span id="quality-badge" class="badge" data-i18n="尚無快照">尚無快照</span>
             </summary>
             <div class="disclosure-body">
               <p id="snapshot-meta" class="secondary"></p>
               <p id="turn-source" class="micro"></p>
               <p id="hand-counts" class="hand-counts"></p>
-              <ul id="hand-list" class="hand-list" aria-label="已辨識的手牌"></ul>
+              <ul id="hand-list" class="hand-list" aria-label="已辨識的手牌" data-i18n-aria-label="已辨識的手牌"></ul>
               <p id="hand-empty" class="secondary"></p>
               <p id="snapshot-reason" class="quality-note"></p>
               <p id="resource-status" class="micro"></p>
@@ -117,16 +117,16 @@
           </details>
 
           <details class="disclosure backup-disclosure">
-            <summary><span>進階備份與管理</span></summary>
+            <summary><span data-i18n="進階備份與管理">進階備份與管理</span></summary>
             <div class="disclosure-body">
-              <p class="secondary">下載目前這一段紀錄。整場合併與 HTML 報告，請使用對局回顧。</p>
+              <p class="secondary" data-i18n="下載目前這一段紀錄。整場合併與 HTML 報告，請使用對局回顧。">下載目前這一段紀錄。整場合併與 HTML 報告，請使用對局回顧。</p>
               <div class="export-actions">
-                <button id="export-json" class="button" type="button">下載 JSON</button>
-                <button id="export-csv" class="button" type="button">手牌 CSV</button>
+                <button id="export-json" class="button" type="button" data-i18n="下載 JSON">下載 JSON</button>
+                <button id="export-csv" class="button" type="button" data-i18n="手牌 CSV">手牌 CSV</button>
               </div>
               <div class="row bottom-actions">
-                <span class="micro">刪除前，建議先備份。</span>
-                <button id="delete-session" class="text-button danger" type="button">刪除此段紀錄</button>
+                <span class="micro" data-i18n="刪除前，建議先備份。">刪除前，建議先備份。</span>
+                <button id="delete-session" class="text-button danger" type="button" data-i18n="刪除此段紀錄">刪除此段紀錄</button>
               </div>
             </div>
           </details>
@@ -134,29 +134,30 @@
       </section>
 
       <details class="panel settings">
-        <summary>記錄設定 <span class="summary-hint">玩家與手牌位置</span></summary>
+        <summary><span data-i18n="記錄設定">記錄設定</span> <span class="summary-hint" data-i18n="玩家與手牌位置">玩家與手牌位置</span></summary>
         <form id="settings-form">
-          <label for="player-name">我的玩家名稱 <span class="optional">選填</span></label>
-          <input id="player-name" type="text" maxlength="80" placeholder="填寫後鎖定此玩家" autocomplete="off" spellcheck="false">
-          <label for="hand-side">我的手牌位置</label>
+          <label for="player-name"><span data-i18n="我的玩家名稱">我的玩家名稱</span> <span class="optional" data-i18n="選填">選填</span></label>
+          <input id="player-name" type="text" maxlength="80" placeholder="填寫後鎖定此玩家" autocomplete="off" spellcheck="false" data-i18n-placeholder="填寫後鎖定此玩家">
+          <label for="hand-side" data-i18n="我的手牌位置">我的手牌位置</label>
           <select id="hand-side" aria-describedby="side-help">
-            <option value="auto">自動：下方玩家手牌</option>
-            <option value="bottom">下方：我自己的手牌</option>
-            <option value="top">上方：我自己的手牌</option>
+            <option value="auto" data-i18n="自動：下方玩家手牌">自動：下方玩家手牌</option>
+            <option value="bottom" data-i18n="下方：我自己的手牌">下方：我自己的手牌</option>
+            <option value="top" data-i18n="上方：我自己的手牌">上方：我自己的手牌</option>
           </select>
-          <p id="side-help" class="micro">自動僅辨識下方本人手牌；旁觀或舊對局只能收錄公開 Log。</p>
-          <label class="check-label"><input id="auto-collect-log" type="checkbox" checked aria-describedby="auto-log-help"> 自動收錄 Battle Log</label>
-          <p id="auto-log-help" class="micro">開局與結束時，閒置期間短暫開啟日誌讀取，再恢復原狀。關閉後，按「更新」或「匯出」仍會嘗試讀取日誌。</p>
-          <button id="save-settings" class="button" type="submit">儲存設定</button>
+          <p id="side-help" class="micro" data-i18n="自動僅辨識下方本人手牌；旁觀或舊對局只能收錄公開 Log。">自動僅辨識下方本人手牌；旁觀或舊對局只能收錄公開 Log。</p>
+          <label class="check-label"><input id="auto-collect-log" type="checkbox" checked="" aria-describedby="auto-log-help"> <span data-i18n="自動收錄 Battle Log">自動收錄 Battle Log</span></label>
+          <p id="auto-log-help" class="micro" data-i18n="開局與結束時，閒置期間短暫開啟日誌讀取，再恢復原狀。關閉後，按「更新」或「匯出」仍會嘗試讀取日誌。">開局與結束時，閒置期間短暫開啟日誌讀取，再恢復原狀。關閉後，按「更新」或「匯出」仍會嘗試讀取日誌。</p>
+          <button id="save-settings" class="button" type="submit" data-i18n="儲存設定">儲存設定</button>
         </form>
       </details>
-      <section id="storage-health" class="storage-health" aria-label="本機儲存容量" data-level="normal">
-        <div class="row"><span class="micro">本機儲存空間</span><strong id="storage-label">讀取中…</strong></div>
-        <progress id="storage-meter" max="100" value="0" aria-label="已用儲存容量"></progress>
+      <section id="storage-health" class="storage-health" aria-label="本機儲存容量" data-level="normal" data-i18n-aria-label="本機儲存容量">
+        <div class="row"><span class="micro" data-i18n="本機儲存空間">本機儲存空間</span><strong id="storage-label" data-i18n="讀取中…">讀取中…</strong></div>
+        <progress id="storage-meter" max="100" value="0" aria-label="已用儲存容量" data-i18n-aria-label="已用儲存容量"></progress>
         <p id="storage-note" class="micro"></p>
-        <details class="rescue-details"><summary>儲存遇到問題？</summary><p class="micro">切到原 MSA 分頁，可下載尚未存妥或被隔離的原始觀察。請保持該分頁開啟。</p><button id="download-rescue" class="button" type="button">下載未存資料救援 JSON</button></details>
+        <details class="rescue-details"><summary data-i18n="儲存遇到問題？">儲存遇到問題？</summary><p class="micro" data-i18n="切到原 MSA 分頁，可下載尚未存妥或被隔離的原始觀察。請保持該分頁開啟。">切到原 MSA 分頁，可下載尚未存妥或被隔離的原始觀察。請保持該分頁開啟。</p><button id="download-rescue" class="button" type="button" data-i18n="下載未存資料救援 JSON">下載未存資料救援 JSON</button></details>
       </section>
-      <footer>只讀可見頁面 <span aria-hidden="true">·</span> 首次使用，請核對實際手牌張數。</footer>
+      <footer><span data-i18n="只讀可見頁面">只讀可見頁面</span> <span aria-hidden="true">·</span> <span data-i18n="首次使用，請核對實際手牌張數。">首次使用，請核對實際手牌張數。</span></footer>
     </main>
-  </body>
-</html>
+
+
+</body></html>

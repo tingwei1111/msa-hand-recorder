@@ -1,5 +1,14 @@
 # 版本紀錄
 
+## v0.10.0 — 三語介面公開測試版 / Three-language interface
+
+- 小視窗、對戰小窗、回顧與資料管理加入繁體中文、簡體中文、English，語言偏好本機保存並同步已開啟介面。
+- 首次依瀏覽器語言選擇；已保存的選擇優先。切換不重載對局、不改寫名稱／筆記／Log、不清掉未儲存草稿。
+- 翻譯按鈕、提示、錯誤、自檢、容量、資源與無障礙標籤；改善英文長句及筆記控制項對比。
+- 英文介面查官方英文卡文，中文介面使用官方繁中來源，卡文與圖片語言分開顯示。
+- 386 項測試通過，含 11 項語言、同步、原文、儲存錯誤與字典完整性驗證；權限、紀錄 schema、Wasm binary 不變。
+- Traditional Chinese, Simplified Chinese and English UI, persistent synchronized preferences, draft preservation, language-aware official card lookups, and bilingual documentation. See [v0.10 details](docs/v0.10.md).
+
 ## v0.9.0 — 深色介面與錄製可靠性公開測試版
 
 - 以 MIT 授權開源，新增雙語快速開始、貢獻指南、v0.9 更動說明與合成介面截圖；保留第三方依賴的原始授權聲明。

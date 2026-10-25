@@ -8,7 +8,7 @@
 
   var QUALITIES = ['complete', 'partial', 'unavailable'];
   var TURN_SOURCES = ['log', 'phase-observed', 'unknown'];
-  var VERSION = '0.9.0';
+  var VERSION = '0.10.0';
 
   function clone(value) {
     if (Array.isArray(value)) return value.map(clone);
@@ -86,10 +86,11 @@
   }
 
   function resourceText(resources) {
-    if (!resources) return '資源未辨識';
-    var show = function(value) { return integer(value, 0) === null ? '未知' : String(value); };
-    return '等級 ' + show(resources.level) + ' · 一般可用 ' + show(resources.active) +
-      ' · EX 可用 ' + show(resources.exActive) + ' · 合計 ' + show(resources.totalActive);
+    var tr = function(source) { return globalThis.MSAI18n ? globalThis.MSAI18n.t(source) : source; };
+    if (!resources) return tr('資源未辨識');
+    var show = function(value) { return integer(value, 0) === null ? tr('未知') : String(value); };
+    return tr('等級 ') + show(resources.level) + tr(' · 一般可用 ') + show(resources.active) +
+      tr(' · EX 可用 ') + show(resources.exActive) + tr(' · 合計 ') + show(resources.totalActive);
   }
 
   function normalizeSnapshot(input, id) {

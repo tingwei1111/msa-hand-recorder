@@ -1,6 +1,6 @@
 {
   "name": "msa-hand-recorder",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "private": true,
   "description": "Chrome extension for local MSA hand snapshots and public Battle Log review",
   "engines": {

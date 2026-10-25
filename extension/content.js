@@ -48,7 +48,7 @@
           gameId:requested.gameId,runId:requested.runId,playerName:requested.playerName,payload}),
         onBindDeck:(requested,payload) => chrome.runtime.sendMessage({type:'MSA_BIND_LIVE_DECK',
           gameId:requested.gameId,runId:requested.runId,playerName:requested.playerName,...payload}),
-        onCardLookup:cardCode => chrome.runtime.sendMessage({type:'MSA_CARD_LOOKUP',cardCode,locale:'zh-tw'}),
+        onCardLookup:cardCode => chrome.runtime.sendMessage({type:'MSA_CARD_LOOKUP',cardCode,locale:globalThis.MSAI18n?.cardLocale || 'zh-tw'}),
         onManage:requested => chrome.runtime.sendMessage({type:'MSA_OPEN_LIBRARY',gameId:requested.gameId,
           runId:requested.runId,playerName:requested.playerName}),
         onDismissAlert:(requested,code) => {

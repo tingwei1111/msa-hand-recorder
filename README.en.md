@@ -7,15 +7,15 @@ A local Chrome recorder for **Mobile Suit Arena (MSA)** and **GUNDAM CARD GAME (
 
 This is an independent community tool, not an official Mobile Suit Arena or GUNDAM CARD GAME product.
 
-**[Download v0.9.0](https://github.com/tingwei1111/msa-hand-recorder/releases/tag/v0.9.0)** · [Full English guide](docs/user-guide.en.md) · [繁體中文教學](docs/使用教學.md) · [Report an issue](https://github.com/tingwei1111/msa-hand-recorder/issues) · [Share the project](docs/sharing.md)
+**[Download v0.10.0](https://github.com/tingwei1111/msa-hand-recorder/releases/tag/v0.10.0)** · [Full English guide](docs/user-guide.en.md) · [繁體中文教學](docs/使用教學.md) · [Report an issue](https://github.com/tingwei1111/msa-hand-recorder/issues) · [Share the project](docs/sharing.md)
 
 **[Start in five minutes](#start-in-five-minutes)** · [Full English guide](docs/user-guide.en.md) · [繁體中文教學](docs/使用教學.md) · [Contribute](CONTRIBUTING.md)
 
 ## Start in five minutes
 
-1. Open the [v0.9.0 release](https://github.com/tingwei1111/msa-hand-recorder/releases/tag/v0.9.0), expand **Assets**, download `msa-hand-recorder-v0.9.0.zip`, and extract it to a permanent folder.
+1. Open the [v0.10.0 release](https://github.com/tingwei1111/msa-hand-recorder/releases/tag/v0.10.0), expand **Assets**, download `msa-hand-recorder-v0.10.0.zip`, and extract it to a permanent folder.
 2. Visit `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select the extracted **`extension`** folder.
-3. Refresh the MSA tab before starting your next match. Open the extension and click **記錄自檢** (Recording diagnostics). The lobby should show **大廳待命中** (Standing by in the lobby).
+3. Open the extension and select **English** under **Interface language**. Refresh MSA before starting your next match, then click **Recorder check**. The lobby should show **Lobby · ready**.
 4. Start a practice match and compare your visible hand, card IDs, quantities, and saved snapshot count. To use deck rows, save a deck in **資料與牌組** (Data & decks), then confirm its binding for this match.
 5. Keep the MSA tab open after the match, click **更新 Log** (Refresh Log), and open **對局回顧** (Match review). Download a full backup or HTML report before closing the match.
 
@@ -25,14 +25,20 @@ This is an independent community tool, not an official Mobile Suit Arena or GUND
 
 | Item | Current status |
 | --- | --- |
-| Version | **v0.9.0 Prerelease.** Published installation files are under the release’s **Assets**. |
+| Version | **v0.10.0 Prerelease.** Published installation files are under the release’s **Assets**. |
 | Documentation | Traditional Chinese and English READMEs, full user guides, card-source notes, and developer notes. |
-| Extension interface | **Currently in Traditional Chinese.** There is no interface language selector. The English guide includes the actual Chinese button labels and their English meanings. |
-| Card preview | The current panel requests official Traditional Chinese card text. Images may be Japanese; text and image languages are reported separately. English documentation does not change the lookup language. |
+| Extension interface | **Traditional Chinese, Simplified Chinese and English.** Choose “Interface language” at the top of the popup, review or workspace; in the live panel, open “Display settings”. Your choice is saved and synchronized. |
+| Card preview | The English interface requests official English text. Both Chinese interfaces request official Traditional Chinese text. Text and image languages are reported separately; images may differ. |
 | Intended environment | Desktop Google Chrome. Other browsers, phones, and tablets have not been validated. |
-| Validation | v0.9.0 passed 375 JavaScript/Wasm tests and 30 synthetic browser recording checks. The Rust/Wasm core is unchanged from v0.8. **A complete real-player match has not yet been validated end to end.** |
+| Validation | v0.10.0 passed 386 JavaScript/Wasm tests and 30 synthetic browser recording checks. The Rust/Wasm core is unchanged from v0.8. **A complete real-player match has not yet been validated end to end.** |
 
 Start with a practice match and compare card numbers, quantities, turns, and public logs manually. A successful diagnostic check or log start/end markers do not prove that every hand state was captured.
+
+## Choose your language
+
+Select **English**, **繁體中文** or **简体中文** from **Interface language** at the top of any extension page. In the live panel, open **Display settings**. Your browser language is used initially; a saved choice takes priority and updates open extension pages immediately without reloading your game. Player names, notes, card names and original Battle Log text stay unchanged.
+
+[v0.10 changes and validation](docs/v0.10.md#english) · [English popup preview](docs/images/popup-v0.10-en.png)
 
 ## What it helps you do
 
@@ -68,14 +74,14 @@ Start with a practice match and compare card numbers, quantities, turns, and pub
 
 **Players do not need Rust, Node.js, Python, or a local server.** The ZIP includes the local Wasm core. Installation is currently manual; there is no Chrome Web Store listing or automatic update mechanism.
 
-1. Open the [v0.9.0 release](https://github.com/tingwei1111/msa-hand-recorder/releases/tag/v0.9.0), expand **Assets**, and download `msa-hand-recorder-v0.9.0.zip`.
+1. Open the [v0.10.0 release](https://github.com/tingwei1111/msa-hand-recorder/releases/tag/v0.10.0), expand **Assets**, and download `msa-hand-recorder-v0.10.0.zip`.
 2. Extract it into a permanent folder. Find the **`extension` subfolder** containing `manifest.json`.
 3. **Type** `chrome://extensions` into Chrome’s address bar and enable **Developer mode**.
 4. Click **Load unpacked** and select **`extension`**.
 5. Pin the extension named **MSA 手牌記錄器**. Reload MSA before starting a match, then click **記錄自檢** (Recording check).
 
 ```text
-msa-hand-recorder-v0.9.0/
+msa-hand-recorder-v0.10.0/
 ├── README.md
 ├── docs/
 └── extension/              ← select this folder in Chrome
@@ -163,9 +169,9 @@ npm run preview
 
 Open `http://127.0.0.1:8768/demo/index.html` for live-panel, popup, review, and library previews. They do not read real records from your installed extension.
 
-Rust handles deck validation, frozen-version selection, hand classification, public-card/Token aggregation, and same-version statistics. JavaScript retains capture, storage, UI, and host-semantics compatibility. v0.9.0 preserves backup formats without a database migration and does not claim a speed improvement.
+Rust handles deck validation, frozen-version selection, hand classification, public-card/Token aggregation, and same-version statistics. JavaScript retains capture, storage, UI, and host-semantics compatibility. v0.10.0 preserves backup formats without a database migration and does not claim a speed improvement.
 
-[Historical changelog (Traditional Chinese)](CHANGELOG.md) · [Releases / bilingual v0.9.0 notes](https://github.com/tingwei1111/msa-hand-recorder/releases/tag/v0.9.0)
+[Historical changelog (Traditional Chinese)](CHANGELOG.md) · [Releases / bilingual v0.10.0 notes](https://github.com/tingwei1111/msa-hand-recorder/releases/tag/v0.10.0)
 
 ## Open source and contributions
 
