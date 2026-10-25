@@ -580,6 +580,110 @@
       (event.cards.length ? ' ｜卡牌：' + markdown(cardList(event.cards)) : '');
   }
 
+  function workspaceSummary(session, info) {
+    var records = {}, notes = [], matches = [];
+    var player = typeof session.playerName === 'string' ? session.playerName.trim() : '';
+    var game = typeof session.gameId === 'string' ? session.gameId : '';
+    var sources = session.isCombined || Array.isArray(session.sourceSessions) ? (Array.isArray(session.sourceSessions) ? session.sourceSessions : []).map(function (source) {
+      return typeof source === 'string' ? source : source && source.id;
+    }) : [session.id];
+    var ids = new Set(sources.filter(function (id) { return typeof id === 'string' && id.trim(); }));
+    var values = info && info.workspaceRecords;
+    var result = {records:records, notes:notes, match:null, deck:null, identityConfirmed:Boolean(game && player && ids.size)};
+    if (!result.identityConfirmed || !values || typeof values !== 'object' || Array.isArray(values)) return result;
+    Object.keys(values).forEach(function (key) {
+      var value = values[key];
+      if (!value || value.schemaVersion !== 1 || typeof value.id !== 'string' || !value.id ||
+        value.gameId !== game || value.playerName !== player) return;
+      if (key === 'msa.note.' + value.id && ids.has(value.sourceSessionId)) {
+        records[key] = copy(value);
+        if (!value.deletedAt && typeof value.note === 'string') notes.push(value);
+      } else if (key === 'msa.match.' + value.id && value.source === 'manual' && value.identityConfirmed === true) {
+        // Manual results describe the whole game, including other runs of this
+        // same player. Notes, unlike results, belong to selected source runs.
+        records[key] = copy(value); matches.push(value);
+      }
+    });
+    matches.forEach(function (match) {
+      var id = typeof match.deckVersionId === 'string' ? match.deckVersionId : '';
+      var deck = id && values['msa.deck.' + id];
+      if (deck && deck.schemaVersion === 1 && deck.id === id) records['msa.deck.' + id] = copy(deck);
+    });
+    function time(value) { var parsed = Date.parse(value); return Number.isFinite(parsed) ? parsed : -Infinity; }
+    notes.sort(function (a,b) { return time(a.createdAt) - time(b.createdAt) || text(a.id).localeCompare(text(b.id)); });
+    matches.sort(function (a,b) { return time(b.updatedAt) - time(a.updatedAt) || text(b.id).localeCompare(text(a.id)); });
+    var latest = matches[0];
+    if (latest && latest.resultConfirmed === true && ['win','loss','draw','concede'].includes(latest.result)) {
+      result.match = latest;
+      var frozen = latest.frozenDeckVersion, deckId = latest.deckVersionId;
+      result.deck = frozen && frozen.schemaVersion === 1 && frozen.id === deckId ? frozen : records['msa.deck.' + deckId] || null;
+    }
+    return result;
+  }
+  function bookmarkTurn(note) {
+    if (Number.isSafeInteger(note.turn) && note.turn > 0) {
+      if (note.turnSource === 'log') return 'Log 校準 · T' + note.turn;
+      if (note.turnSource === 'phase-observed') return '推計回合 · T' + note.turn;
+    }
+    return (Number.isSafeInteger(note.observedTurn) && note.observedTurn > 0 ? '觀察 ' + note.observedTurn + ' · ' : '') + '回合未校準';
+  }
+  function bookmarkAnchor(session, note) {
+    var present = (session.snapshots || []).some(function (snapshot) {
+      return snapshot.id === note.snapshotId && (snapshot.sourceSessionId || session.id) === note.sourceSessionId;
+    });
+    return '來源段落 ' + text(note.sourceSessionId) + ' · 來源快照 ' + text(note.snapshotId || '未標示') +
+      (present ? '' : '；來源快照未在本次匯出中，不改接其他回合。');
+  }
+  function matchDescription(match) {
+    var results = {win:'勝',loss:'負',draw:'和局',concede:'本人投降（負）'};
+    var orders = {first:'先手',second:'後手',unknown:'先後手未確認'};
+    return '人工確認結果：' + results[match.result] + ' · ' + (orders[match.firstPlayer] || orders.unknown) +
+      ' · 確認更新 ' + text(match.updatedAt || '時間未知') + '。這是整局人工記錄，不是依 Log 自動推定。';
+  }
+  function deckDescription(deck) {
+    function total(rows) {
+      if (!Array.isArray(rows) || rows.some(function (row) { return !row || !Number.isSafeInteger(row.count) || row.count < 1; })) return '未知';
+      var sum = rows.reduce(function (amount,row) { return amount + row.count; },0);
+      return Number.isSafeInteger(sum) ? sum + ' 張' : '未知';
+    }
+    return '牌組：' + text(deck.name || '未命名') + ' · 版本 ' + text(deck.id) +
+      ' · 主牌 ' + total(deck.main) + ' · 資源 ' + total(deck.resources) + ' · Token ' + total(deck.tokens) +
+      ' · 內容識別 ' + text(deck.contentHash || '未提供') + '。此摘要不驗證賽制合法性。';
+  }
+  function workspaceMarkdown(session, summary) {
+    var lines = ['', '## 書籤與筆記', '', '- 僅顯示本玩家、本次來源段落的有效筆記；已刪除筆記不列在閱讀內容。', ''];
+    if (!summary.notes.length) lines.push('- ' + (summary.identityConfirmed ? '本次來源段落沒有有效筆記。' : '玩家身分或來源段落未確認，不顯示筆記。'));
+    summary.notes.forEach(function (note) {
+      lines.push('### ' + markdown(note.tag || '未設標籤'), '', '- ' + markdown(bookmarkTurn(note)),
+        '- ' + markdown(bookmarkAnchor(session,note)), '- 建立 ' + markdown(note.createdAt || '時間未知') +
+        ' · 更新 ' + markdown(note.updatedAt || '時間未知'), '', markdown(note.note || '（未填寫筆記）'), '');
+    });
+    lines.push('', '## 人工戰績與牌組', '');
+    if (!summary.match) lines.push('- 尚無本玩家可顯示的最新人工確認結果；不從公開事件猜測勝負。');
+    else {
+      lines.push('- ' + markdown(matchDescription(summary.match)), '- 結果來源段落：' + markdown(summary.match.sourceSessionId || '未標示'));
+      lines.push('- ' + (summary.deck ? markdown(deckDescription(summary.deck)) : '未提供可核對的綁定牌組版本。'));
+    }
+    return lines;
+  }
+  function workspaceHTML(session, summary) {
+    var parts = ['<section class="turn" data-workspace-section="notes"><h2>書籤與筆記</h2><p class="meta">僅顯示本玩家、本次來源段落的有效筆記；已刪除筆記只保留於匯出資訊原始資料。</p>'];
+    if (!summary.notes.length) parts.push('<p>' + (summary.identityConfirmed ? '本次來源段落沒有有效筆記。' : '玩家身分或來源段落未確認，不顯示筆記。') + '</p>');
+    summary.notes.forEach(function (note) {
+      parts.push('<article class="snapshot" data-note-id="' + html(note.id) + '"><h3>' + html(note.tag || '未設標籤') + '</h3>' +
+        '<p class="meta">' + html(bookmarkTurn(note)) + '</p><p class="meta">' + html(bookmarkAnchor(session,note)) +
+        '</p><p class="meta">建立 ' + html(note.createdAt || '時間未知') + ' · 更新 ' + html(note.updatedAt || '時間未知') +
+        '</p><pre>' + html(note.note || '（未填寫筆記）') + '</pre></article>');
+    });
+    parts.push('</section><section class="turn" data-workspace-section="match"><h2>人工戰績與牌組</h2>');
+    if (!summary.match) parts.push('<p>尚無本玩家可顯示的最新人工確認結果；不從公開事件猜測勝負。</p>');
+    else {
+      parts.push('<p>' + html(matchDescription(summary.match)) + '</p><p class="meta">結果來源段落：' + html(summary.match.sourceSessionId || '未標示') + '</p>',
+        '<p>' + (summary.deck ? html(deckDescription(summary.deck)) : '未提供可核對的綁定牌組版本。') + '</p>');
+    }
+    parts.push('</section>'); return parts.join('\n');
+  }
+
   function toMarkdown(session, options) {
     options = options || {};
     var timeline = buildTimeline(session);
@@ -591,6 +695,9 @@
     if (options.exportInfo) {
       lines.push('- 匯出前刷新：' + markdown(refreshDescription(options.exportInfo)),
         '- 匯出時間：' + markdown(options.exportInfo.exportedAt || '未標示'), '');
+      if (Object.prototype.hasOwnProperty.call(options.exportInfo,'workspaceRecords')) {
+        lines.push.apply(lines,workspaceMarkdown(session,workspaceSummary(session,options.exportInfo)));
+      }
     }
     timeline.warnings.forEach(function (warning) { lines.push('- 警告：' + markdown(warning)); });
     if (timeline.handCaptureIssues.length) {
@@ -650,6 +757,13 @@
     options = options || {};
     var timeline = buildTimeline(session);
     var info = copy(options.exportInfo || {});
+    var workspace = null;
+    if (Object.prototype.hasOwnProperty.call(info,'workspaceRecords')) {
+      workspace = workspaceSummary(session,info);
+      // Keep deleted/inactive in-scope metadata for restoration, but never
+      // embed another player's/game's records even if a caller passes a wider map.
+      info.workspaceRecords = workspace.records;
+    }
     if (!info.exportedAt) info.exportedAt = new Date().toISOString();
     var parts = ['<!doctype html><html lang="zh-Hant"><head><meta charset="UTF-8">',
       '<meta name="viewport" content="width=device-width, initial-scale=1"><title>MSA 完整觀察紀錄</title>',
@@ -660,6 +774,7 @@
       '<p class="note">' + html(refreshDescription(info)) + '</p>',
       '<p class="note">' + (timeline.coverage.publicLogComplete ? '已見開局與結束，未標出已知公開紀錄缺口。' : '公開紀錄仍有缺口或未見完整起尾，不能稱為整場完整。') +
       ' 每筆手牌皆是觀察，不能保證捕捉了每次變動；最早／最晚不等於真正回合起訖。數量差不代表已確認的抽牌、出牌或棄牌。</p>'];
+    if (workspace) parts.push(workspaceHTML(session,workspace));
     timeline.warnings.forEach(function (warning) { parts.push('<p class="note">' + html(warning) + '</p>'); });
     if (timeline.handCaptureIssues.length) {
       parts.push('<section class="turn"><h2>手牌擷取缺口</h2><p>以下缺口獨立於公開 Log 涵蓋狀態；公開 Log 完整也不能補回未存入的手牌觀察。</p>');

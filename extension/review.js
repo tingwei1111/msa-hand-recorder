@@ -26,6 +26,24 @@
   let exportInProgress = false;
   let pendingReload = false;
   let lastExportInfo = null;
+  let workspaceValues = {};
+  const workspace = globalThis.MSAReviewWorkspace && $('workspace-notes') ? globalThis.MSAReviewWorkspace.create({
+    container: $('workspace-notes'), getCurrent: () => session, getValues: () => workspaceValues,
+    notice, onJump: jumpToNote
+  }) : null;
+
+  function jumpToNote(note) {
+    const target = groups.find(group => (group.observations || []).some(({snapshot}) =>
+      snapshot?.id === note.snapshotId && (snapshot.sourceSessionId || session?.id) === note.sourceSessionId));
+    if (!target) return false;
+    $('turn-search').value = '';
+    selectedTurnKey = target.key;
+    renderNavigation('heading');
+    const card = Array.from($('turn-content').querySelectorAll('[data-snapshot-id]')).find(node =>
+      node.dataset.snapshotId === note.snapshotId && node.dataset.sourceSessionId === note.sourceSessionId);
+    if (card) { card.tabIndex = -1; card.focus({preventScroll:true}); card.scrollIntoView({block:'nearest'}); }
+    return true;
+  }
 
   function element(tag, className, text) {
     const node = document.createElement(tag);
@@ -220,6 +238,8 @@
     if (snapshot.sourceSessionId) metadata.append(element('p', 'muted', `來源段落 ${snapshot.sourceSessionId}`));
     metadata.append(element('pre', '', JSON.stringify(snapshot, null, 2)));
     box.append(metadata);
+    const noteButton = workspace?.buttonForSnapshot(snapshot);
+    if (noteButton) box.append(noteButton);
     return box;
   }
 
@@ -354,6 +374,7 @@
     for (const observation of observations) {
       const card = handCard(observation.snapshot, `快照 ${observation.index}`);
       card.dataset.snapshotId = observation.snapshot.id || '';
+      card.dataset.sourceSessionId = observation.snapshot.sourceSessionId || session?.id || '';
       card.append(element('p', 'snapshot-delta', globalThis.MSABattleLogCore.deltaDescription(observation)));
       historyList.append(card);
     }
@@ -437,7 +458,8 @@
 
   function compatibleSessions(current) {
     if (!current.gameId) return { sources: [current], note: '沒有可核對的對局 ID，僅顯示此段。' };
-    const sameGame = sessions.map((entry) => entry.session).filter((item) => item.gameId === current.gameId);
+    if (current.isCombined) return { sources: [current], note: '此筆已是合併報告，保留其原始合併結果，避免再次加入來源段落。' };
+    const sameGame = sessions.map((entry) => entry.session).filter((item) => item.gameId === current.gameId && !item.isCombined);
     const names = [...new Set(sameGame.map((item) => typeof item.playerName === 'string' ? item.playerName.trim() : '').filter(Boolean))];
     const ownName = typeof current.playerName === 'string' ? current.playerName.trim() : '';
     if (!ownName && current.snapshots.length) return { sources: [current], note: '此段手牌身份未確認，避免混合玩家，僅顯示此段。' };
@@ -461,7 +483,7 @@
     $('download-review').disabled = !session || exportInProgress;
     $('export-format').disabled = !session || exportInProgress;
     updateExportControls();
-    if (!session) { $('combine-segments').disabled = true; $('merge-status').textContent = '尚無記錄段落。'; return; }
+    if (!session) { $('combine-segments').disabled = true; $('merge-status').textContent = '尚無記錄段落。'; workspace?.render(); return; }
     try {
       const compatible = compatibleSessions(session);
       $('combine-segments').disabled = exportInProgress || compatible.sources.length < 2;
@@ -476,6 +498,7 @@
       groups = createGroups(timeline);
       renderOverview();
       renderNavigation();
+      workspace?.render();
     } catch (error) {
       failure('無法整理回合報告；仍可選擇 JSON 下載原始資料。', error);
       timeline = null;
@@ -487,6 +510,7 @@
   }
 
   function applyData(values) {
+    workspaceValues = values;
     sessions = Object.entries(values).filter(([key, value]) => key.startsWith(PREFIX) && value && typeof value === 'object' && Array.isArray(value.snapshots))
       .map(([key, value]) => ({ id: key.slice(PREFIX.length), session: value }))
       .sort((a, b) => (Date.parse(b.session.updatedAt) || 0) - (Date.parse(a.session.updatedAt) || 0));
@@ -592,7 +616,8 @@
         gameId: current.gameId, playerName: current.playerName, selectedSessionId: selection.id,
         combined: Boolean(current.isCombined), refresh: JSON.parse(JSON.stringify(refresh)),
         snapshotCount: current.snapshots.length, eventCount: current.battleLog?.events?.length || 0,
-        coverage: exportCoverage, ...(summaryError ? { summaryError } : {}) };
+        coverage: exportCoverage, workspaceRecords: workspace?.exportRecords(current, values) || {},
+        ...(summaryError ? { summaryError } : {}) };
       lastExportInfo = exportInfo;
       renderExportStatus();
       const format = selection.format;
@@ -643,7 +668,7 @@
   $('combine-segments').addEventListener('change', () => { selectedTurnKey = ''; notice(''); renderSelected(); });
   $('refresh-review').addEventListener('click', () => { notice(''); loadData(); });
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== 'local' || !Object.keys(changes).some((key) => key.startsWith(PREFIX))) return;
+    if (area !== 'local' || !Object.keys(changes).some((key) => [PREFIX,'msa.note.','msa.deck.','msa.match.','msa.import.'].some(prefix => key.startsWith(prefix)))) return;
     if (exportInProgress) { pendingReload = true; return; }
     clearTimeout(reloadTimer); reloadTimer = setTimeout(loadData, 180);
   });

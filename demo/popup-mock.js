@@ -19,7 +19,7 @@ const previewRows=[
  {text:'Game ended!',actor:'',cards:[]}
 ].map((row,sourceIndex)=>({...row,sourceIndex}));
 previewSession=MSABattleLogCore.ingest(previewSession,{observedAt:'2026-10-24T03:04:00Z',rows:previewRows,players:['測試玩家','測試對手'],order:'oldest-first',completeFromStart:true,ended:true});
-const previewStorage={'msa.session.demo-only':previewSession,'msa.status.demo':{updatedAt:new Date().toISOString(),gameId:previewGame,message:'介面預覽：已儲存合成手牌觀察，並非實際對局',playerName:'測試玩家',quality:'complete'}};
+let previewStorage={'msa.session.demo-only':previewSession,'msa.status.demo':{updatedAt:new Date().toISOString(),gameId:previewGame,message:'介面預覽：已儲存合成手牌觀察，並非實際對局',playerName:'測試玩家',quality:'complete'}};
 const previewScenario=new URLSearchParams(location.search).get('scenario');
 if(previewScenario==='segments'){
  const first=structuredClone(previewSession);first.id='demo-part-1';first.snapshots=first.snapshots.slice(0,2);delete first.battleLog;
@@ -45,22 +45,7 @@ if(previewScenario==='segments'){
 }else if(previewScenario==='long'){
  previewSession.playerName='合成示範玩家名稱很長時仍應完整保留並且可以閱讀';
 }
-const previewListeners=[];
-window.chrome=window.chrome||{};
-chrome.runtime={getURL(file){return '/demo/'+file.replace('review.html','review-preview.html');},async sendMessage(message){
- if(message.type==='MSA_SHOW_LIVE_PANEL')return {ok:false,reason:'此頁為合成小視窗預覽；請使用 demo/index.html 測試對戰側邊小窗。'};
- if(message.type==='MSA_PREPARE_EXPORT') {
-  await new Promise(resolve=>setTimeout(resolve,500));
-  if(previewScenario==='export-success')return {ok:true,refreshed:true,eventCount:previewSession.battleLog?.events?.length||0};
-  return {ok:true,refreshed:false,reason:'此頁為合成資料預覽，沒有連線到 MSA'};
- }
- return {ok:false,reason:'非測試訊息'};
-}};
-chrome.storage={local:{async get(keys){
- if(previewScenario==='storage-error')throw new Error('合成測試：無法讀取本機儲存空間');
- if(keys==null)return {...previewStorage};
- return Object.fromEntries((Array.isArray(keys)?keys:[keys]).filter(key=>key in previewStorage).map(key=>[key,previewStorage[key]]));
-},async set(values){
- if(previewScenario==='settings-error')throw new Error('合成測試：設定儲存失敗');
- const changes={};for(const[k,v]of Object.entries(values)){changes[k]={oldValue:previewStorage[k],newValue:v};previewStorage[k]=v;}previewListeners.forEach(fn=>fn(changes,'local'));
-},async remove(key){const oldValue=previewStorage[key];delete previewStorage[key];previewListeners.forEach(fn=>fn({[key]:{oldValue}},'local'));}},onChanged:{addListener(fn){previewListeners.push(fn);}}};
+// Explicit scenarios keep their original isolated fixtures. Normal popup,
+// review, library, and game previews share only this loopback origin's data.
+const previewWorkspace=MSAPreviewWorkspace.create({seed:previewStorage,scenario:previewScenario,isolated:Boolean(previewScenario)});
+previewStorage=previewWorkspace.database;

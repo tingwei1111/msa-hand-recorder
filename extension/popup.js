@@ -32,6 +32,7 @@
   let refreshBusy = false;
   let dataLoaded = false;
   let panelBusy = false;
+  let diagnosticsBusy = false;
   let latestStatus = null;
   const actionLabels = {
     'export-json': '下載 JSON', 'export-csv': '手牌 CSV', 'sync-log': '更新 Log',
@@ -88,6 +89,7 @@
     }
     $('session-content').setAttribute('aria-busy', String(recordBusy));
     $('show-live-panel').disabled = recordBusy || panelBusy;
+    $('run-diagnostics').disabled = diagnosticsBusy || recordBusy;
   }
 
   function setRecordBusy(busy, action) {
@@ -370,9 +372,15 @@
     try {
       refresh = await chrome.runtime.sendMessage({type:'MSA_PREPARE_EXPORT',gameId:selected.gameId,playerName:selected.playerName});
     } catch (error) { refresh = {ok:false,refreshed:false,reason:error.message || '記錄器連線失敗'}; }
-    const values = await chrome.storage.local.get(key);
+    const values = await chrome.storage.local.get(null);
     if (!values[key]) throw new Error('所選記錄已不存在。');
-    return {session: {...values[key], exportInfo:{exportedAt:new Date().toISOString(),scope:'single-segment',refresh}}, refresh};
+    if (values[key].gameId !== selected.gameId || values[key].playerName !== selected.playerName) throw new Error('所選記錄身分已改變，請重新選取。');
+    const session = {...values[key]};
+    let infoKey = 'exportInfo';
+    while (Object.hasOwn(session, infoKey)) infoKey = `recorder${infoKey[0].toUpperCase()}${infoKey.slice(1)}`;
+    session[infoKey] = {exportedAt:new Date().toISOString(),scope:'single-segment',refresh,
+      workspaceRecords:globalThis.MSAReviewWorkspace?.exportRecords(session,values) || {}};
+    return {session, refresh};
   }
 
   async function withPreparedSession(action, trigger) {
@@ -387,6 +395,32 @@
     finally { await loadData(); setRecordBusy(false); }
   }
 
+  $('open-library').addEventListener('click', async () => {
+    $('open-library').disabled=true;
+    try{
+      const result=await chrome.runtime.sendMessage({type:'MSA_OPEN_LIBRARY',sessionId:selectedSession()?.id || ''});
+      if(!result?.ok)throw new Error(result?.reason || '請重新載入擴充功能。');
+    }catch(error){reportError('無法開啟資料管理。',error);}
+    finally{$('open-library').disabled=false;}
+  });
+  $('run-diagnostics').addEventListener('click',async()=>{
+    if(diagnosticsBusy)return;
+    diagnosticsBusy=true;updateControls();$('run-diagnostics').textContent='檢查中…';
+    try{
+      const result=await chrome.runtime.sendMessage({type:'MSA_RUN_DIAGNOSTICS'});
+      if(!result?.ok||!result.report)throw new Error(result?.error || '新版自檢模組尚未回應。');
+      const report=result.report;$('diagnostics-panel').hidden=false;$('diagnostics-panel').open=true;
+      $('diagnostics-meta').textContent=`v${report.extensionVersion||'未知'} · 對局 ${report.gameId?String(report.gameId).slice(0,8):'未確認'} · ${dateText(report.checkedAt)}`;
+      $('diagnostics-results').replaceChildren();
+      for(const check of report.checks || []){
+        const li=document.createElement('li');li.className=['pass','warning','error'].includes(check.level)?check.level:'warning';
+        const title=document.createElement('strong');title.textContent=check.label;
+        const detail=document.createElement('p');detail.textContent=check.detail;li.append(title,detail);$('diagnostics-results').append(li);
+      }
+      $('diagnostics-summary').textContent=report.summary;
+    }catch(error){reportError('記錄自檢未能完成。',error);}
+    finally{diagnosticsBusy=false;updateControls();$('run-diagnostics').textContent='記錄自檢';}
+  });
   $('show-live-panel').addEventListener('click', async () => {
     if (panelBusy || exportBusy || deleteBusy || refreshBusy) return;
     panelBusy = true; updateControls();

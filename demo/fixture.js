@@ -1,28 +1,36 @@
 'use strict';
 const testGame='00000000-0000-4000-8000-000000000001';
 history.replaceState({},'',`/game/${testGame}`);
-const database={'msa.settings':{enabled:true,handSide:'auto',autoCollectLog:false}};const changeListeners=[];
-const captureMessageListeners=[];
 let fixtureCloseDelayMs=0;
 let fixtureWriteFailure=false;
-window.chrome=window.chrome||{};
-chrome.storage={
- local:{
-  async get(keys){if(keys===null)return {...database};return Object.fromEntries((Array.isArray(keys)?keys:[keys]).filter(k=>k in database).map(k=>[k,database[k]]));},
-  async set(values){const changes={};for(const [key,value] of Object.entries(values)){changes[key]={oldValue:database[key],newValue:value};database[key]=value;}changeListeners.forEach(fn=>fn(changes,'local'));},
-  async remove(key){delete database[key];}
- },onChanged:{addListener(fn){changeListeners.push(fn);},removeListener(fn){const index=changeListeners.indexOf(fn);if(index>=0)changeListeners.splice(index,1);}}
-};
-chrome.runtime={id:'synthetic-extension',onMessage:{addListener(fn){captureMessageListeners.push(fn);}},async sendMessage(msg){
- if(msg.type==='MSA_STATUS'){database.status=msg.status;return {ok:true};}
+const previewWorkspace=MSAPreviewWorkspace.create({
+ seed:{'msa.settings':{enabled:true,handSide:'auto',autoCollectLog:false}},
+ writeFailure:()=>fixtureWriteFailure,onMessage:fixtureMessage
+});
+const database=previewWorkspace.database;
+const captureMessageListeners=previewWorkspace.messageListeners;
+async function fixtureMessage(msg){
+ if(msg.type==='MSA_STATUS'){
+  await chrome.storage.local.set({'msa.status.preview':{...msg.status,updatedAt:new Date().toISOString(),tabId:1}});return {ok:true};
+ }
  if(msg.type==='MSA_OPEN_LIVE_REVIEW'){
+  // Preserve this fixture's original navigation behavior. The independently
+  // accessible review preview is not a replacement for a blocked navigation.
   const saved=database['msa.session.'+msg.gameId+'.'+msg.runId];
   if(!saved)return {ok:false,reason:'本段尚無合成記錄'};
   const url=URL.createObjectURL(new Blob([MSABattleLogCore.toHTML(saved)],{type:'text/html;charset=utf-8'}));
   window.open(url,'_blank','noopener');setTimeout(()=>URL.revokeObjectURL(url),60000);
   return {ok:true,opened:true};
  }
- if(!['MSA_RECORD','MSA_LOG'].includes(msg.type))return {ok:false,error:'Unexpected fixture message'};
+ if(msg.type==='MSA_CAPTURE_GAP'){
+  const key='msa.session.'+msg.gameId+'.'+msg.runId,source=database[key];
+  if(!source)return {ok:false,error:'合成來源記錄尚未建立'};
+  const saved=structuredClone(source);
+  saved.captureIssues=[...(saved.captureIssues||[]),{code:msg.issue?.code==='buffer-full'?'buffer-full':'context-changed-pending',
+   observedAt:new Date().toISOString(),pendingCount:msg.issue?.pendingCount||1,reason:msg.issue?.reason||'合成測試：觀察尚未確認存妥'}];
+  await chrome.storage.local.set({[key]:saved});return {ok:true};
+ }
+ if(!['MSA_RECORD','MSA_LOG'].includes(msg.type))return undefined;
  if(database['msa.settings']?.enabled===false)return {ok:true,paused:true};
  if(fixtureWriteFailure)return {ok:false,error:'合成測試：儲存失敗，尚未寫入本機'};
  const key='msa.session.'+msg.gameId+'.'+msg.runId;
@@ -31,7 +39,7 @@ chrome.runtime={id:'synthetic-extension',onMessage:{addListener(fn){captureMessa
  const saved=msg.type==='MSA_LOG'?MSABattleLogCore.ingest(base,msg.batch):MSARecorderCore.appendSnapshot(base,msg.snapshot);
  await chrome.storage.local.set({[key]:saved});
  return {ok:true,id:saved.id,snapshotCount:saved.snapshots.length,eventCount:saved.battleLog?.events?.length||0,coverage:saved.battleLog?.coverage||null};
-}};
+}
 function makeCard(code,ref,back=false){
  const slot=document.createElement('div');slot.className='slot';slot.dataset.layoutId=ref;
  const flip=document.createElement('div');flip.dataset.flippableCard='true';flip.style.transform=back?'rotateY(180deg)':'none';
@@ -50,7 +58,7 @@ function active(side){
  document.querySelector('.top ._battleAreaBox_fixture').style.zIndex=side==='top'?'10':'9';
  document.querySelector('._gridContainer_fixture:not(.top) ._battleAreaBox_fixture').style.zIndex=side==='bottom'?'10':'9';
 }
-function reset(){setHand(['GD05-002','GD05-002','ST04-010']);active('bottom');closeLog();document.getElementById('fixture-ended')?.remove();}
+function reset(){setHand(['GD05-002','GD05-002','ST04-010']);active('bottom');closeLog();document.getElementById('fixture-ended')?.remove();document.getElementById('open-log').onclick=()=>openLog(sampleLogRows);}
 function closeLog(){document.querySelector('[role="dialog"]')?.remove();}
 function appendLogText(paragraph,row){
  let offset=0;
@@ -105,7 +113,7 @@ const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const assert=(condition,message)=>{if(!condition)throw new Error(message);};
 const read=()=>MSARecorderDOM.readDocument(document);
 const own=()=>read().candidates.find(item=>item.side==='bottom');
-const sessions=()=>Object.entries(database).filter(([key])=>key.startsWith('msa.session.')).map(([,value])=>value);
+const sessions=()=>Object.entries(database).filter(([key])=>key.startsWith('msa.session.')&&/\.[a-f0-9-]{36}$/i.test(key)).map(([,value])=>value).sort((a,b)=>String(a.updatedAt).localeCompare(String(b.updatedAt)));
 function show(){const snapshot=read();const hand=own();document.getElementById('reading').textContent=JSON.stringify({hand:hand?.hand,total:hand?.expectedCount,unknown:hand?.unknownCount,quality:hand?.quality,activePlayer:snapshot.activePlayer,logTurn:snapshot.logTurn,savedSnapshots:sessions().reduce((n,s)=>n+s.snapshots.length,0),savedPublicEvents:sessions().reduce((n,s)=>n+(s.battleLog?.events?.length||0),0),visibleLog:MSARecorderDOM.readBattleLog(document)?.rows.length||0},null,2);}
 document.getElementById('draw').onclick=()=>setHand(['GD05-002','GD05-002','ST04-010','GD04-068']);
 document.getElementById('switch').onclick=()=>active(read().activeSide==='bottom'?'top':'bottom');
@@ -146,6 +154,15 @@ if(document.getElementById('show-live')){
   const close=document.createElement('button');close.textContent='關閉測試視窗';close.onclick=()=>dialog.remove();dialog.append(title,note,close);document.body.append(dialog);
  };
 }
+document.getElementById('finish-match').onclick=()=>{
+ closeLog();document.getElementById('fixture-ended')?.remove();
+ const ended=document.createElement('h2');ended.id='fixture-ended';ended.textContent='Game Ended!';document.body.append(ended);
+ document.getElementById('open-log').onclick=()=>openLog([...sampleLogRows,{text:'Game ended!',actor:'',cards:[]}]);
+};
+document.getElementById('clear-preview').onclick=async()=>{
+ if(!confirm('清除這個本機預覽來源的所有合成記錄、筆記、牌組與設定？不會存取已安裝擴充功能的資料。'))return;
+ await previewWorkspace.reset();location.reload();
+};
 document.getElementById('run-tests').onclick=async()=>{
  const button=document.getElementById('run-tests');button.disabled=true;
  const results=document.getElementById('results');results.replaceChildren();
@@ -233,7 +250,7 @@ document.getElementById('run-tests').onclick=async()=>{
   const snapshotsBefore=sessions().reduce((sum,session)=>sum+session.snapshots.length,0);
   const ended=document.createElement('h2');ended.id='fixture-ended';ended.textContent='Winner: Demo South';document.body.append(ended);
   const endedGame='00000000-0000-4000-8000-000000000002';history.replaceState({},'',`/game/${endedGame}`);openLog(fullLog.rows);
-  await pause(1400);const saved=sessions().find(session=>session.gameId===endedGame);
+  await pause(1400);const saved=sessions().filter(session=>session.gameId===endedGame).at(-1);
   assert(saved?.battleLog?.events.length===537,'結束後沒有收錄公開事件');assert(saved.snapshots.length===0,'結束後捏造手牌');
   assert(sessions().reduce((sum,session)=>sum+session.snapshots.length,0)===snapshotsBefore,'結束頁產生多餘手牌');
  });
@@ -251,7 +268,7 @@ document.getElementById('run-tests').onclick=async()=>{
   fixtureCloseDelayMs=220;
   const result=await new Promise(resolve=>captureMessageListeners[0]({type:'MSA_CAPTURE_NOW',gameId:exportGame,reason:'export'}, {},resolve));
   fixtureCloseDelayMs=0;
-  const saved=sessions().find(s=>s.gameId===exportGame);
+  const saved=sessions().filter(s=>s.gameId===exportGame).at(-1);
   assert(result.refreshed&&result.pendingCount===0&&result.restored,'匯出前未完成擷取/儲存/關閉動畫：'+JSON.stringify(result));
   assert(saved?.battleLog?.events.length===8,'公開Log未保存');
   assert(saved.snapshots.length>0,'手牌未保存');
@@ -269,7 +286,7 @@ document.getElementById('run-tests').onclick=async()=>{
   const ended=document.createElement('h2');ended.id='fixture-ended';ended.textContent='Game Ended!';document.body.append(ended);
   await chrome.storage.local.set({'msa.settings':{enabled:true,handSide:'auto',autoCollectLog:true}});
   await pause(1900);
-  const saved=sessions().find(s=>s.gameId===gameIdFromLocation());
+  const saved=sessions().filter(s=>s.gameId===gameIdFromLocation()).at(-1);
   assert(saved?.battleLog?.coverage.publicLogComplete,'未自動收錄整場起尾');
   assert(!MSARecorderDOM.getBattleLogControls(document).isOpen,'結束收錄後未恢復關閉');
   document.getElementById('open-log').onclick=()=>openLog(sampleLogRows);

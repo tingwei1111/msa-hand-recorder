@@ -8,6 +8,7 @@
 
   var QUALITIES = ['complete', 'partial', 'unavailable'];
   var TURN_SOURCES = ['log', 'phase-observed', 'unknown'];
+  var VERSION = '0.6.0';
 
   function clone(value) {
     if (Array.isArray(value)) return value.map(clone);
@@ -40,7 +41,7 @@
     var source = value.trim();
     try { source = decodeURIComponent(source); } catch (_) { /* Keep malformed URLs readable. */ }
     if (/(?:^|[^a-z])(?:back|backside|cardback|card-back)(?:[^a-z]|$)|裏面|背面|牌背/i.test(source)) return null;
-    var match = source.toUpperCase().match(/(?:^|[^A-Z0-9])((?:GD|ST|EB)\d{2,3}|EXB|EXR|R|T)[-_](\d{3})(?=$|[^A-Z0-9])/);
+    var match = source.toUpperCase().match(/(?:^|[^A-Z0-9])((?:GD|ST|EB|SC|SLB)\d{2,3}|EXB|EXR|PR|P|R|T)[-_](\d{3})(?=$|[^A-Z0-9])/);
     return match ? match[1] + '-' + match[2] : null;
   }
 
@@ -64,7 +65,7 @@
     var startedAt = timestamp(options.startedAt);
     return {
       schemaVersion: 1,
-      recorderVersion: '0.5.0',
+      recorderVersion: VERSION,
       id: text(options.id) || 'msa-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10),
       gameId: text(options.gameId),
       playerName: text(options.playerName),
@@ -241,6 +242,7 @@
   }
 
   return {
+    VERSION: VERSION,
     normalizeCardCode: normalizeCardCode,
     parseResources: parseResources,
     resourceText: resourceText,

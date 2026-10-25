@@ -8,6 +8,16 @@
   const gameId = () => location.pathname.match(/^\/game\/([a-f0-9-]{36})(?:\/|$)/i)?.[1] || null;
   const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
   const sameContext = ctx => current === ctx && gameId() === ctx.gameId;
+  const observationSignature = snapshot => globalThis.MSADiagnosticsCore?.signature(snapshot) || JSON.stringify({...snapshot,timestamp:undefined});
+  function refreshHealth(ctx) {
+    if (!ctx || !globalThis.MSADiagnosticsCore) return;
+    ctx.healthAlerts = MSADiagnosticsCore.alerts({enabled:settings.enabled,writeError:ctx.writeError || (ctx.connectionError?'記錄器連線中斷':''),
+      writeErrorSince:ctx.writeErrorSince || ctx.connectionErrorSince,changedAt:ctx.changedAt,
+      observedSignature:ctx.observedSignature,savedSignature:ctx.savedSignature,handExpected:ctx.handExpected,
+      startedAt:ctx.handExpectedAt,snapshotCount:ctx.snapshotCount,eventCount:ctx.eventCount,
+      endObservedAt:ctx.endObservedAt,publicLogComplete:ctx.coverage?.publicLogComplete,dismissed:ctx.healthDismissed},Date.now());
+    ctx.healthSignature = JSON.stringify(ctx.healthAlerts);
+  }
   function syncLivePanel() {
     if (!ready || !globalThis.MSALivePanelController || !globalThis.MSALivePanelCore || !globalThis.MSALivePanelUI) return false;
     try {
@@ -18,6 +28,7 @@
           enabled:settings.enabled,pendingCount:current.writer.state().pendingCount,
           writeError:current.writeError || (current.connectionError ? '記錄器連線中斷，請重新整理此頁' : ''),
           captureNote:current.captureNote,statusMessage:current.statusMessage || '',quality:current.lastQuality
+          ,healthAlerts:current.healthAlerts || [],endObserved:Boolean(current.endObservedAt)
         } : null,
         project:MSALivePanelCore.project,
         createUI:MSALivePanelUI.create,
@@ -31,7 +42,18 @@
           return requestCapture(ctx,{reason:'live-panel',playerName:ctx.playerName});
         },
         onReview:requested => chrome.runtime.sendMessage({type:'MSA_OPEN_LIVE_REVIEW',
-          gameId:requested.gameId,runId:requested.runId,playerName:requested.playerName})
+          gameId:requested.gameId,runId:requested.runId,playerName:requested.playerName}),
+        onBookmark:(requested,payload) => chrome.runtime.sendMessage({type:'MSA_NOTE_ACTION',action:'create',
+          gameId:requested.gameId,runId:requested.runId,playerName:requested.playerName,payload}),
+        onCardLookup:cardCode => chrome.runtime.sendMessage({type:'MSA_CARD_LOOKUP',cardCode,locale:'zh-tw'}),
+        onManage:requested => chrome.runtime.sendMessage({type:'MSA_OPEN_LIBRARY',gameId:requested.gameId,
+          runId:requested.runId,playerName:requested.playerName}),
+        onDismissAlert:(requested,code) => {
+          if(!current || !sameContext(current) || current.runId!==requested.runId)return {ok:false,reason:'對局已切換。'};
+          const alert=current.healthAlerts?.find(item=>item.code===code);
+          if(alert){current.healthDismissed[code]=alert.observedAt;refreshHealth(current);publish(current,'已確認記錄提醒');}
+          return {ok:true};
+        }
       });
       livePanelController.sync();
       badge?.remove();
@@ -49,14 +71,16 @@
     if (!ctx || !sameContext(ctx)) return;
     const pending = ctx.writer.state().pendingCount;
     const text = `${message} · Log ${ctx.eventCount} 筆${pending ? ` · 待存 ${pending} 筆` : ''}${ctx.writeError ? ` · 儲存失敗：${ctx.writeError}` : ''}${ctx.captureNote ? ` · ${ctx.captureNote}` : ''}`;
-    const signature = `${text}|${quality}|${ctx.playerName}`;
+    refreshHealth(ctx);
+    const signature = `${text}|${quality}|${ctx.playerName}|${ctx.healthSignature || ''}`;
     if (signature === ctx.statusSignature) return;
     ctx.statusSignature = signature; ctx.statusMessage = text;
     if (!syncLivePanel()) { mountBadge(); badgeText.textContent = `🃏 ${text}`; }
-    chrome.runtime.sendMessage({type:'MSA_STATUS',status:{message:text,quality,gameId:ctx.gameId,playerName:ctx.playerName}})
+    chrome.runtime.sendMessage({type:'MSA_STATUS',status:{message:text,quality,gameId:ctx.gameId,playerName:ctx.playerName,
+      version:globalThis.MSARecorderCore?.VERSION || '',runId:ctx.runId,pendingCount:pending,lastSavedAt:ctx.lastSavedAt || ''}})
       .catch(() => {
         if (!sameContext(ctx)) return;
-        ctx.connectionError = true;
+        if(!ctx.connectionError)ctx.connectionErrorSince=Date.now();ctx.connectionError = true;refreshHealth(ctx);
         if (!syncLivePanel()) { mountBadge(); badgeText.textContent = '🃏 記錄器連線中斷，請重新整理此頁'; }
       });
   }
@@ -67,12 +91,15 @@
       ctx.snapshotCount = result.snapshotCount || 0; ctx.eventCount = result.eventCount || 0;
       if (result.coverage) ctx.coverage = result.coverage;
       if (result.id) ctx.sessionIds.add(result.id);
-      ctx.writeError = ''; ctx.connectionError = false; publish(ctx, `已保存 ${ctx.snapshotCount} 筆手牌`);
+      if(payload.type==='MSA_RECORD'){ctx.savedSignature=observationSignature(payload.snapshot);ctx.lastSavedAt=new Date().toISOString();}
+      ctx.writeError = ''; ctx.writeErrorSince=0;ctx.connectionError = false; publish(ctx, `已保存 ${ctx.snapshotCount} 筆手牌`);
       if (ctx.rejectedCount > ctx.persistedRejectedCount && !ctx.persistingGap) persistOverflow(ctx);
     },
     onError(payload,error) {
       const ctx = contexts.get(payload.runId); if (!ctx) return;
-      ctx.writeError = String(error.message || error).slice(0,80); publish(ctx, '暫存保留，稍後重試');
+      const nextError=String(error.message || error).slice(0,80);
+      if(ctx.writeError!==nextError)ctx.writeErrorSince=Date.now();
+      ctx.writeError = nextError; publish(ctx, '暫存保留，稍後重試');
     }
   });
   function reset(id) {
@@ -92,7 +119,9 @@
     const ctx = {gameId:id,runId:crypto.randomUUID(),lockedSide:null,observedTurn:0,activeSide:null,anchor:null,lastLogTurn:null,
       handSignature:'',logSignature:'',lastLogScan:0,started:false,endedAt:null,handEnded:false,playerName:'',
       snapshotCount:0,eventCount:0,lastQuality:'unavailable',sessionIds:new Set(),coverage:null,statusSignature:'',
-      captureNote:'',writeError:'',rejectedCount:0,persistedRejectedCount:0,persistingGap:false,nextGapAttemptAt:0,lastRejectedSignature:'',autoStartDone:false,autoEndDone:false,autoAttempts:{start:0,end:0},nextAutoAt:0,writer:createWriter()};
+      captureNote:'',writeError:'',healthAlerts:[],healthDismissed:{},healthSignature:'',writeErrorSince:0,
+      changedAt:0,observedSignature:'',savedSignature:'',lastSavedAt:'',handExpected:false,handExpectedAt:0,endObservedAt:0,
+      rejectedCount:0,persistedRejectedCount:0,persistingGap:false,nextGapAttemptAt:0,lastRejectedSignature:'',autoStartDone:false,autoEndDone:false,autoAttempts:{start:0,end:0},nextAutoAt:0,writer:createWriter()};
     current = ctx; contexts.set(ctx.runId,ctx); publish(ctx, '已連線，等待可見手牌／公開 Log'); return ctx;
   }
   function enqueue(ctx,type,data) {
@@ -125,6 +154,8 @@
     if (view.ended && !ctx.started) return;
     if (view.ended && ctx.endedAt === null) ctx.endedAt = Date.now();
     const hand = MSARecorderDOM.selectHand(view,settings,ctx.lockedSide);
+    ctx.handExpected=Boolean(hand?.playerName&&hand.knownCount>0);
+    if(ctx.handExpected&&!ctx.handExpectedAt)ctx.handExpectedAt=Date.now();
     if (hand?.playerName && ctx.playerName && hand.playerName !== ctx.playerName) { publish(ctx,'玩家身分已改變，停止混入此段'); return; }
     if (!ctx.started && (!hand || hand.animating || hand.quality !== 'complete' || (!hand.knownCount && !settings.playerName))) return;
     const turn = ctx.anchor ? ctx.anchor.turn + ctx.observedTurn - ctx.anchor.observedTurn : null;
@@ -136,6 +167,8 @@
       reason:hand?.animating ? 'animation-observed' : !hand ? 'hand-container-missing' : view.ended ? 'game-ended' : hand.reason,
       resources:hand?.resources || null};
     const signature = JSON.stringify({...snapshot,timestamp:undefined});
+    const observed=observationSignature(snapshot);
+    if(observed!==ctx.observedSignature){ctx.observedSignature=observed;ctx.changedAt=Date.now();}
     if (signature !== ctx.handSignature) {
       if (!ctx.lockedSide && hand?.quality === 'complete' && hand.knownCount > 0 && !hand.animating) ctx.lockedSide = hand.side;
       if (hand?.playerName) ctx.playerName = hand.playerName;
@@ -156,7 +189,8 @@
     return batch;
   }
   function inputBusy() {
-    const element = document.activeElement;
+    let element = document.activeElement;
+    while(element?.shadowRoot?.activeElement)element=element.shadowRoot.activeElement;
     return pointerDown || Date.now()-lastInteractionAt < 800 || Boolean(element && (
       /^(INPUT|TEXTAREA|SELECT)$/.test(element.tagName || '') || element.isContentEditable || element.closest?.('[contenteditable="true"]')));
   }
@@ -170,6 +204,8 @@
       if (!ready) return;
       if (!settings.enabled) { publish(ctx,'已暫停；恢復後會建立新紀錄'); return; }
       const view = MSARecorderDOM.readDocument(document);
+      if(view.ended&&!ctx.endObservedAt)ctx.endObservedAt=Date.now();
+      if(!view.ended)ctx.endObservedAt=0;
       updateTurn(ctx,view); captureHand(ctx,view); captureLog(ctx,view,options.forceLog);
       void ctx.writer.retry();
       publish(ctx,ctx.started ? `已保存 ${ctx.snapshotCount} 筆手牌` : view.ended ? '已結束；可收錄公開 Log，無法補回手牌' : '等待自己的可見手牌');
@@ -299,6 +335,17 @@
   }
   for (const name of ['pointerdown','pointerup','pointercancel','keydown','input','wheel']) document.addEventListener(name,interacted,{capture:true,passive:true});
   chrome.runtime.onMessage.addListener((message,sender,respond) => {
+    if(message?.type==='MSA_DIAGNOSTICS_QUERY'){
+      if(!chrome.runtime.id||sender?.id!==chrome.runtime.id)return false;
+      sample({skipAuto:true});
+      const ctx=current;
+      respond({connected:Boolean(ctx&&sameContext(ctx)),version:globalThis.MSARecorderCore?.VERSION || '',
+        ready,enabled:settings.enabled,gameId:gameId(),runId:ctx?.runId || '',playerName:ctx?.playerName || '',
+        pendingCount:ctx?.writer.state().pendingCount || 0,writeError:ctx?.writeError || (ctx?.connectionError?'記錄器連線中斷':''),quality:ctx?.lastQuality || 'unavailable',
+        snapshotCount:ctx?.snapshotCount || 0,eventCount:ctx?.eventCount || 0,lastSavedAt:ctx?.lastSavedAt || '',
+        publicLogComplete:Boolean(ctx?.coverage?.publicLogComplete),healthAlerts:ctx?.healthAlerts || []});
+      return false;
+    }
     if (message?.type === 'MSA_LIVE_PANEL_SHOW') {
       if (!chrome.runtime.id || sender?.id !== chrome.runtime.id) return false;
       const id = gameId();

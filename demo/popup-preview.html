@@ -7,11 +7,17 @@
     <link rel="stylesheet" href="../extension/popup.css">
     <script src="../extension/recorder-core.js" defer></script>
     <script src="../extension/battle-log-core.js" defer></script>
+    <script src="../extension/annotations-core.js" defer></script>
+    <script src="../extension/review-workspace.js" defer></script>
+    <script src="../extension/diagnostics-core.js" defer></script>
+    <script src="../extension/library-core.js" defer></script>
+    <script src="../extension/library-store.js" defer></script>
+    <script src="workspace-mock.js" defer></script>
     <script src="popup-mock.js" defer></script>
     <script src="../extension/popup.js" defer></script>
   </head>
   <body>
-    <div style="padding:7px 12px;text-align:center;background:#e9efdf;color:#374b28;font:11px/1.5 system-ui,sans-serif">介面預覽 · 合成資料，未連線至 MSA</div>
+    <div style="padding:7px 12px;text-align:center;background:#e9efdf;color:#374b28;font:11px/1.5 system-ui,sans-serif">介面預覽 · 合成資料，未連線至 MSA；查卡只查詢官方公開卡片來源</div>
     <header class="masthead">
       <div>
         <p class="eyebrow">MSA · MATCH RECORDER</p>
@@ -38,6 +44,16 @@
         </div>
         <p id="status-summary" class="secondary status-summary">正在確認已儲存的觀察。</p>
         <button id="show-live-panel" class="button live-panel-button" type="button">顯示對戰側邊小窗 ↗</button>
+        <div class="utility-actions" aria-label="記錄檢查與資料管理">
+          <button id="run-diagnostics" class="button" type="button">記錄自檢</button>
+          <button id="open-library" class="button" type="button">資料與牌組</button>
+        </div>
+        <details id="diagnostics-panel" class="diagnostics-panel" hidden>
+          <summary>目前分頁自檢結果</summary>
+          <p id="diagnostics-meta" class="micro"></p>
+          <ul id="diagnostics-results" class="diagnostics-results" aria-live="polite"></ul>
+          <p id="diagnostics-summary" class="micro"></p>
+        </details>
         <details id="status-details" class="status-details">
           <summary>最近分頁回報</summary>
           <p id="status-message" class="secondary status-message">正在讀取本機資料。</p>

@@ -124,6 +124,25 @@
     const handSession = identityConfirmed && current && !mismatch ? current : null;
     const latest = handSession?.snapshots.at(-1);
     const hand = projectHand(latest && typeof latest === 'object' ? latest : null, identityConfirmed, mismatch);
+    let handDelta = {comparable:false,added:[],removed:[],reason:'尚無可比較的前一筆完整觀察。'};
+    const previous = handSession?.snapshots.at(-2);
+    if(previous && latest && identityConfirmed && !mismatch){
+      const before=projectHand(previous,true,false);
+      if(before.quality==='complete'&&hand.quality==='complete'&&
+          (previous.sourceSessionId||handSession.id)===handSession.id&&
+          (latest.sourceSessionId||handSession.id)===handSession.id&&
+          Number.isFinite(Date.parse(previous.timestamp))&&Number.isFinite(Date.parse(latest.timestamp))&&
+          Date.parse(previous.timestamp)<=Date.parse(latest.timestamp)&&text(previous.id).trim()&&
+          text(latest.id).trim()&&previous.id!==latest.id){
+        const amounts=new Map(before.handCards.map(card=>[card.cardCode,-card.count]));
+        hand.handCards.forEach(card=>amounts.set(card.cardCode,(amounts.get(card.cardCode)||0)+card.count));
+        handDelta={comparable:true,added:[],removed:[],reason:'相鄰完整觀察的張數差，不推定抽牌、出牌或棄牌原因。'};
+        for(const [cardCode,difference]of amounts){
+          if(difference>0)handDelta.added.push({cardCode,count:difference});
+          if(difference<0)handDelta.removed.push({cardCode,count:-difference});
+        }
+      }else handDelta.reason='前後觀察不完整、順序待確認或跨段落，未推算張數差。';
+    }
     // An anonymous source is compatible only when it never recorded a hand.
     // Without a current identity, only this run's public evidence is admitted.
     const sources = identityConfirmed ? entries.filter(session => name(session.playerName) === playerName ||
@@ -176,7 +195,8 @@
       sessionId:current && (handSession || current.snapshots.length === 0) && sources.includes(current) ? current.id : null,
       ...hand, snapshotCount:handSession?.snapshots.length || 0,
       publicEventCount:events.length, publicPlayCount:plays.length, recentPlays, coverageLabel, coverageTone,
-      captureIssues, statusLabel:'等待已存資料', statusTone:'neutral', statusDetail:''};
+      captureIssues, handDelta,healthAlerts:copy(Array.isArray(context.healthAlerts)?context.healthAlerts:[]),
+      endObserved:Boolean(context.endObserved),statusLabel:'等待已存資料', statusTone:'neutral', statusDetail:''};
     const pending = count(context.pendingCount) || 0, writeError = text(context.writeError).trim();
     const details = [];
     if (writeError) {

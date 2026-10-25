@@ -2,6 +2,7 @@
 """Keep synthetic browser previews on the real extension markup."""
 import argparse
 from pathlib import Path
+import re
 
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
@@ -10,18 +11,27 @@ args = parser.parse_args()
 
 banner = ('\n    <div style="padding:7px 12px;text-align:center;background:#e9efdf;'
           'color:#374b28;font:11px/1.5 system-ui,sans-serif">'
-          '介面預覽 · 合成資料，未連線至 MSA</div>')
+          '介面預覽 · 合成資料，未連線至 MSA；查卡只查詢官方公開卡片來源</div>')
 
-for page in ("popup", "review"):
+for page in ("popup", "review", "library"):
     source = (ROOT / "extension" / f"{page}.html").read_text(encoding="utf-8")
-    source = source.replace(f'href="{page}.css"', f'href="../extension/{page}.css"')
-    for script in ("recorder-core.js", "battle-log-core.js", f"{page}.js"):
-        source = source.replace(f'src="{script}"', f'src="../extension/{script}"')
+    source = re.sub(r'(src|href)="([A-Za-z0-9_-]+\.(?:js|css))"',
+                    lambda match: f'{match[1]}="../extension/{match[2]}"', source)
     anchor = f'    <script src="../extension/{page}.js" defer></script>'
-    if source.count(anchor) != 1 or source.count("  <body>") != 1:
+    # Library uses two-space indentation; only exact script and body tags matter.
+    script_match = re.search(rf'^[ \t]*<script src="\.\./extension/{page}\.js" defer></script>', source, re.M)
+    body_match = re.search(r'<body>', source)
+    if not script_match or not body_match:
         raise SystemExit(f"Unexpected extension markup: {page}")
-    source = source.replace(anchor, '    <script src="popup-mock.js" defer></script>\n' + anchor)
-    source = source.replace("  <body>", "  <body>" + banner)
+    dependencies = []
+    for name in ("recorder-core.js", "battle-log-core.js", "annotations-core.js",
+                 "diagnostics-core.js", "library-core.js", "library-store.js"):
+        if f'src="../extension/{name}"' not in source:
+            dependencies.append(f'    <script src="../extension/{name}" defer></script>')
+    dependencies += ['    <script src="workspace-mock.js" defer></script>',
+                     '    <script src="popup-mock.js" defer></script>']
+    source = source[:script_match.start()] + '\n'.join(dependencies) + '\n' + source[script_match.start():]
+    source = source.replace("<body>", "<body>" + banner, 1)
     target = ROOT / "demo" / f"{page}-preview.html"
     if args.check:
         if not target.exists() or target.read_text(encoding="utf-8") != source:

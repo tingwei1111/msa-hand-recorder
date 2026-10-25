@@ -261,8 +261,15 @@ test('preference writes are serialized and latest UI intent wins', async () => {
   assert.equal(h.writes.length, 1, 'second write waits for earlier acknowledgement');
   first.resolve(); await settle();
   assert.equal(h.writes.length, 2);
-  assert.deepEqual(h.values[PREFS_KEY], {expanded: false, left: 30, top: 40});
-  assert.deepEqual(view.preferences.at(-1), {expanded: false, left: 30, top: 40});
+  for (const preferences of [h.values[PREFS_KEY], view.preferences.at(-1)]) {
+    assert.equal(preferences.expanded, false);
+    assert.equal(preferences.left, 30);
+    assert.equal(preferences.top, 40);
+    assert.ok(['hand', 'events', 'all'].includes(preferences.tab));
+    assert.ok(preferences.width >= 280 && preferences.width <= 480);
+    assert.ok(preferences.fontSize >= 11 && preferences.fontSize <= 16);
+    assert.ok(['free', 'left', 'right'].includes(preferences.dock));
+  }
   h.stop();
 });
 

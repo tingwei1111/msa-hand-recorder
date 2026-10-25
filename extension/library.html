@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>本機資料庫 · MSA 記錄器</title>
+  <link rel="stylesheet" href="library.css">
+  <script src="library-core.js" defer></script>
+  <script src="library.js" defer></script>
+</head>
+<body>
+  <header class="page-header">
+    <div><p class="eyebrow">MSA HAND RECORDER · LOCAL LIBRARY</p><h1>把對局留在自己手上</h1><p>備份、牌組版本與人工確認的個人戰績，全部保存在這個瀏覽器。</p></div>
+    <button id="backup" class="primary" type="button">下載完整備份</button>
+  </header>
+  <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+  <nav class="section-nav" aria-label="管理頁章節"><a href="#restore">備份還原</a><a href="#decks">牌組版本</a><a href="#matches">對局綁定</a><a href="#statistics">個人戰績</a></nav>
+  <main>
+    <section id="restore" class="panel">
+      <div class="section-heading"><div><p class="eyebrow">01 / BACKUP & RESTORE</p><h2>備份與匯入</h2></div><p id="workspace-count" class="muted">讀取本機資料中…</p></div>
+      <p>完整備份包含對局、註記、牌組版本、人工戰績與匯入原件。錄製設定與小窗位置不會被匯入改動。</p>
+      <label class="file-label" for="import-file">選擇 JSON 備份或本工具匯出的獨立 HTML</label>
+      <input id="import-file" type="file" accept=".json,.html,.htm,application/json,text/html">
+      <p class="hint">最多 20 MiB。讀取 HTML 只解析資料區塊，不執行其中的程式。</p>
+      <div id="import-preview" class="preview" hidden>
+        <h3>匯入前先核對</h3><p id="import-source"></p><p id="import-summary" class="summary-line"></p><ul id="import-warnings" class="warnings"></ul>
+        <div class="table-wrap"><table><caption class="sr-only">待匯入資料與衝突處理</caption><thead><tr><th>資料記錄</th><th>處理方式</th></tr></thead><tbody id="import-items"></tbody></table></div>
+        <p class="hint">衝突時保留本機內容，匯入版另存或封存原件。多筆寫入不保證同時成功；若中斷會明確列出已存與未完成項目。</p>
+        <div class="actions"><button id="confirm-import" class="primary" type="button" disabled>確認匯入這些資料</button><button id="cancel-import" class="secondary" type="button">取消</button></div>
+      </div>
+      <details class="archive-details"><summary>匯入原件與衝突副本</summary><div id="archives" class="archive-list"></div></details>
+    </section>
+    <section id="decks" class="panel">
+      <div class="section-heading"><div><p class="eyebrow">02 / DECK VERSIONS</p><h2>保存每一次改牌</h2></div><span class="badge">版本內容不可覆寫</span></div>
+      <p>每次修改另存版本。這裡檢查格式、主牌 50 張與同卡號上限 4 張；<strong>不代表已驗證當期賽制合法性</strong>，也不根據卡號猜測卡片類型。</p>
+      <form id="deck-form">
+        <div class="form-grid"><label>從既有版本開始<select id="deck-version"><option value="">建立新牌組</option></select></label><label>牌組名稱<input id="deck-name" maxlength="120" required autocomplete="off" placeholder="例如：週末練習牌組"></label></div>
+        <label>主牌組（50 張）<textarea id="deck-main" rows="10" spellcheck="false" required placeholder="4xGD01-001&#10;4 GD01-002&#10;GD01-003x4"></textarea></label>
+        <div class="form-grid"><label>資源（另列，不計入主牌 50 張）<textarea id="deck-resources" rows="4" spellcheck="false" placeholder="10xR-001"></textarea></label><label>Token（另列，不計入主牌 50 張）<textarea id="deck-tokens" rows="4" spellcheck="false" placeholder="2xT-001"></textarea></label></div>
+        <p class="hint">支援「數量x卡號」「數量 卡號」「卡號x數量」；同一卡號會合併。資源與 Token 只做格式及數量展示，不計入主牌；區域由你指定，卡片存在與賽制合法性尚未驗證。</p>
+        <p id="deck-validation" class="validation" aria-live="polite"></p>
+        <div class="actions"><button id="save-deck" class="primary" type="submit">保存為牌組版本</button><button id="new-deck" class="secondary" type="button">清空並建立新牌組</button></div>
+      </form>
+      <p id="deck-version-info" class="hint"></p>
+    </section>
+    <section id="matches" class="panel">
+      <div class="section-heading"><div><p class="eyebrow">03 / MATCH RECORD</p><h2>替對局補上你的確認</h2></div><span class="badge">資料來源：人工確認</span></div>
+      <p>多段記錄仍是同一場對局。以「對局 ID＋確認的玩家名稱」計算一次，結束標記不會自動變成勝負結果。</p>
+      <form id="match-form">
+        <label>本機對局記錄<select id="match-session" required></select></label>
+        <p id="match-source" class="hint"></p>
+        <label>你的玩家名稱<input id="match-player" maxlength="200" autocomplete="off" required></label>
+        <label class="check-row"><input id="identity-confirmed" type="checkbox" required><span>我確認這是本人在這場對局使用的名稱。</span></label>
+        <label>使用的牌組版本<select id="match-deck"><option value="">尚未綁定牌組</option></select></label>
+        <p class="hint">儲存時會凍結整份版本，之後修改牌組不會改寫這場的牌表。手牌片段不會被當作完整牌表或精確牌庫。</p>
+        <div class="form-grid"><label>先後手<select id="match-order"><option value="unknown">尚未確認</option><option value="first">先手（人工確認）</option><option value="second">後手（人工確認）</option></select></label><label>本人結果<select id="match-result"><option value="unknown">尚未確認</option><option value="win">勝（含對手投降）</option><option value="loss">負</option><option value="draw">和局</option><option value="concede">本人投降（計負）</option></select></label></div>
+        <label class="check-row"><input id="result-confirmed" type="checkbox"><span>我確認以上結果；未確認結果不列入勝率。</span></label>
+        <div class="actions"><button id="save-match" class="primary" type="submit">保存對局確認</button></div>
+      </form>
+      <p id="match-saved" class="hint"></p>
+    </section>
+    <section id="statistics" class="panel">
+      <div class="section-heading"><div><p class="eyebrow">04 / PERSONAL RECORD</p><h2>看得見樣本數的戰績</h2></div><span class="badge">只計人工確認結果</span></div>
+      <div class="form-grid"><label>牌組版本<select id="stats-deck"><option value="">全部版本</option></select></label><label>先後手<select id="stats-order"><option value="">全部</option><option value="first">先手</option><option value="second">後手</option><option value="unknown">先後手未確認</option></select></label></div>
+      <div id="stats-summary" class="stats-grid"></div><p id="stats-denominator" class="hint"></p>
+      <div class="table-wrap"><table><caption class="sr-only">符合條件的人工戰績</caption><thead><tr><th>對局／玩家</th><th>牌組版本</th><th>先後手</th><th>確認結果</th></tr></thead><tbody id="stats-rows"></tbody></table></div>
+    </section>
+  </main>
+  <footer>僅保存本機資料；移除擴充功能或清除瀏覽器資料前，請先下載完整備份。</footer>
+</body>
+</html>

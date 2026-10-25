@@ -13,6 +13,15 @@
 }
 * { box-sizing: border-box; }
 .live-panel-button { width: 100%; margin: 8px 0 2px; }
+.utility-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.diagnostics-panel { margin-top: 12px; font-size: 12px; }
+.diagnostics-results { list-style: none; padding: 0; margin: 8px 0; }
+.diagnostics-results li { padding: 8px; border-left: 3px solid #9aa9a2; background: #f2f5f1; margin: 6px 0; border-radius: 4px; }
+.diagnostics-results li.pass { border-color: #087f75; }
+.diagnostics-results li.warning { border-color: #b47c23; }
+.diagnostics-results li.error { border-color: #b45a43; background: #fff1e9; }
+.diagnostics-results strong { display: block; font-size: 11px; }
+.diagnostics-results p { margin: 3px 0 0; color: #52665c; font-size: 11px; }
 body { width: 420px; max-width: 100vw; min-width: 280px; margin: 0; }
 [hidden] { display: none !important; }
 button, input, select { font: inherit; }

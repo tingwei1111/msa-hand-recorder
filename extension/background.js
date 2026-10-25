@@ -1,5 +1,6 @@
 'use strict';
-importScripts('recorder-core.js', 'battle-log-core.js');
+importScripts('recorder-core.js', 'battle-log-core.js', 'diagnostics-core.js', 'annotations-core.js',
+  'library-core.js', 'library-store.js', 'card-provider.js');
 const queues = new Map();
 const preparing = new Map();
 const tabGames = new Map();
@@ -8,6 +9,11 @@ const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 function trusted(sender) {
   try { return sender.tab && sender.frameId === 0 && new URL(sender.url).origin === 'https://mobilesuitarena.com'; }
   catch (_) { return false; }
+}
+function senderGameId(sender) {
+  if (!trusted(sender)) return null;
+  const match = new URL(sender.url).pathname.match(/^\/game\/([^/]+)\/?$/);
+  return match && UUID.test(match[1]) ? match[1] : null;
 }
 function enqueue(key, task) {
   const next = (queues.get(key) || Promise.resolve()).catch(() => {}).then(task);
@@ -19,7 +25,7 @@ function extensionSender(sender) {
   try {
     const url = new URL(sender.url);
     return sender.id === chrome.runtime.id && url.protocol === 'chrome-extension:' &&
-      url.hostname === chrome.runtime.id && ['/popup.html','/review.html'].includes(url.pathname);
+      url.hostname === chrome.runtime.id && ['/popup.html','/review.html','/library.html'].includes(url.pathname);
   } catch (_) { return false; }
 }
 function timeout(promise, milliseconds) {
@@ -36,6 +42,103 @@ async function waitForGameWrites(gameId) {
   }
 }
 const partial = (gameId, code, reason, extra = {}) => ({ok:true, refreshed:false, partial:true, gameId, code, reason, ...extra});
+const cardCache = new Map(), cardPending = new Map();
+let cardCacheBytes = 0;
+function officialCardCaller(sender) {
+  if(extensionSender(sender))return true;
+  return Boolean(senderGameId(sender));
+}
+async function lookupCard(message) {
+  const provider=globalThis.MSACardProvider;
+  if(!provider)return {status:'error',reason:'卡片資料模組未載入。'};
+  const code=provider.normalizeCardCode(message.cardCode),locale=message.locale==='en'?'en':'zh-tw';
+  if(!code)return {status:'error',reason:'卡號格式不符。'};
+  const key=locale+':'+code,hit=cardCache.get(key);
+  if(hit&&Date.now()-hit.at<600000){cardCache.delete(key);cardCache.set(key,hit);return hit.value;}
+  if(hit){cardCacheBytes-=hit.bytes;cardCache.delete(key);}
+  if(cardPending.has(key))return cardPending.get(key);
+  if(cardPending.size>=4)return {status:'error',cardCode:code,reason:'目前查卡請求較多，請稍候再試。'};
+  const pending=(async()=>{
+    const metadata=await provider.lookupCard(code,{fetch:globalThis.fetch,locale});
+    let value={...metadata};
+    if(metadata.status==='ok'&&metadata.imageUrl){
+      const image=await provider.fetchCardImage(metadata.imageUrl,{fetch:globalThis.fetch,cardCode:code});
+      if(image.status==='ok')value.imageDataUrl=image.dataUrl;
+      else value.imageReason=image.reason||'卡圖未能載入，文字資料仍可閱讀。';
+    }
+    if(value.status!=='error'){
+      const bytes=JSON.stringify(value).length;
+      while(cardCache.size&&(cardCacheBytes+bytes>10*1024*1024||cardCache.size>=80)){
+        const oldest=cardCache.keys().next().value;cardCacheBytes-=cardCache.get(oldest).bytes;cardCache.delete(oldest);
+      }
+      cardCache.set(key,{value,bytes,at:Date.now()});cardCacheBytes+=bytes;
+    }
+    return value;
+  })().catch(error=>({status:'error',cardCode:code,locale,reason:String(error.message||error)}))
+    .finally(()=>cardPending.delete(key));
+  cardPending.set(key,pending);return pending;
+}
+async function diagnosticsForActivePage() {
+  const extensionVersion=chrome.runtime.getManifest?.().version||MSARecorderCore.VERSION||'';
+  let page=null,reason='';
+  try{
+    const tabs=await chrome.tabs.query({active:true,currentWindow:true});
+    if(!tabs[0]?.id)throw new Error('目前沒有可檢查的 MSA 對局分頁。');
+    page=await timeout(chrome.tabs.sendMessage(tabs[0].id,{type:'MSA_DIAGNOSTICS_QUERY'},{frameId:0}),5000);
+    if(page?.connected&&UUID.test(page.gameId||'')&&UUID.test(page.runId||'')){
+      try{
+        const id=page.gameId+'.'+page.runId,key='msa.session.'+id;
+        const stored=(await chrome.storage.local.get(key))[key];
+        const valid=stored&&stored.id===id&&stored.gameId===page.gameId&&Array.isArray(stored.snapshots)&&
+          (!stored.playerName||stored.playerName===page.playerName)&&stored.captureSource?.tabId===tabs[0].id;
+        page={...page,snapshotCount:valid?stored.snapshots.length:0,
+          eventCount:valid&&Array.isArray(stored.battleLog?.events)?stored.battleLog.events.length:0,
+          publicLogComplete:Boolean(valid&&stored.battleLog?.coverage?.publicLogComplete),
+          lastSavedAt:valid?page.lastSavedAt:'',storageCheck:valid?'verified':stored?'mismatch':'missing'};
+      }catch(_){page={...page,snapshotCount:0,eventCount:0,publicLogComplete:false,lastSavedAt:'',storageCheck:'error'};}
+    }
+  }catch(_){reason='目前分頁沒有回應新版記錄器。請切到 MSA 對局頁，更新後重新整理該頁。';}
+  return {ok:true,report:MSADiagnosticsCore.report({extensionVersion,page,reason})};
+}
+async function openLibrary(message,sender) {
+  const fromExtension=extensionSender(sender);
+  if(!fromExtension&&senderGameId(sender)!==message.gameId)return {ok:false,reason:'不允許的對局來源。'};
+  const url=new URL(chrome.runtime.getURL('library.html'));
+  if(UUID.test(message.gameId||''))url.searchParams.set('gameId',message.gameId);
+  if(UUID.test(message.gameId||'')&&UUID.test(message.runId||''))url.searchParams.set('id',message.gameId+'.'+message.runId);
+  if(fromExtension&&typeof message.sessionId==='string'&&message.sessionId.length<200)url.searchParams.set('id',message.sessionId);
+  await chrome.tabs.create({url:url.href});return {ok:true,opened:true};
+}
+async function noteAction(message,sender) {
+  const notes=globalThis.MSAAnnotationsCore;
+  if(!notes)return {ok:false,reason:'筆記模組尚未載入。'};
+  if(message.action==='create'){
+    const internal=extensionSender(sender);
+    const id=internal?String(message.sourceSessionId||''):`${message.gameId}.${message.runId}`;
+    if(!id||id.length>220||(!internal&&(!UUID.test(message.gameId||'')||!UUID.test(message.runId||'')||senderGameId(sender)!==message.gameId)))return {ok:false,reason:'筆記來源不符。'};
+    const stored=await chrome.storage.local.get('msa.session.'+id),session=stored['msa.session.'+id];
+    if(!session||!Array.isArray(session.snapshots)||session.id!==id||!session.playerName)return {ok:false,reason:'找不到來源相符的本人已存記錄。'};
+    if(!internal&&(session.gameId!==message.gameId||session.playerName!==message.playerName||
+      session.captureSource?.tabId!==sender.tab.id||session.captureSource?.documentId!==sender.documentId))return {ok:false,reason:'無法核對筆記所屬的玩家與分頁。'};
+    const snapshot=session.snapshots.find(item=>item?.id===message.payload?.snapshotId);
+    if(!snapshot)return {ok:false,reason:'指定手牌快照尚未存入或已不存在。'};
+    const note=notes.create(session,snapshot,message.payload);
+    await chrome.storage.local.set({[notes.PREFIX+note.id]:note});return {ok:true,bookmark:note};
+  }
+  if(!extensionSender(sender)||message.action!=='update')return {ok:false,reason:'只能在本機回顧頁編輯筆記。'};
+  const id=String(message.noteId||'');
+  if(!UUID.test(id))return {ok:false,reason:'筆記 ID 不符。'};
+  const key=notes.PREFIX+id,values=await chrome.storage.local.get(key);
+  if(!values[key])return {ok:false,reason:'筆記已不存在。'};
+  const updated=notes.update(values[key],message.payload);
+  await chrome.storage.local.set({[key]:updated});return {ok:true,bookmark:updated};
+}
+async function libraryAction(message) {
+  const allowed=['previewImport','applyImport','saveDeck','saveMatch','createBackup'];
+  if(!allowed.includes(message.action)||!globalThis.MSALibraryStore)return {ok:false,error:'不支援的資料管理操作。'};
+  const store=MSALibraryStore.create({storage:chrome.storage.local,withKeyLock:(key,task)=>enqueue(key,task)});
+  return store[message.action](message);
+}
 async function showLivePanel() {
   const tabs = await chrome.tabs.query({active:true,currentWindow:true});
   if (!tabs[0]?.id) return {ok:false,reason:'請先切換到 MSA 對局頁面。'};
@@ -47,7 +150,7 @@ async function showLivePanel() {
 }
 async function openLiveReview(message, sender) {
   const {gameId,runId} = message;
-  if (!UUID.test(gameId || '') || !UUID.test(runId || '') || new URL(sender.url).pathname.split('/')[2] !== gameId) {
+  if (!UUID.test(gameId || '') || !UUID.test(runId || '') || senderGameId(sender) !== gameId) {
     return {ok:false,reason:'對局頁面或記錄段落不符。'};
   }
   const id = `${gameId}.${runId}`, key = `msa.session.${id}`;
@@ -106,6 +209,26 @@ async function prepareExport(message) {
   return partial(gameId, last?.code || 'capture-failed', last?.reason || '無法更新公開 Log', {attempts, preparedAt:new Date().toISOString()});
 }
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
+  if(message?.type==='MSA_CARD_LOOKUP'){
+    if(!officialCardCaller(sender)){respond({status:'error',reason:'不允許的查卡來源。'});return false;}
+    lookupCard(message).then(respond,error=>respond({status:'error',reason:String(error.message||error)}));return true;
+  }
+  if(message?.type==='MSA_RUN_DIAGNOSTICS'){
+    if(!extensionSender(sender)){respond({ok:false,error:'不允許的自檢來源。'});return false;}
+    diagnosticsForActivePage().then(respond,error=>respond({ok:false,error:String(error.message||error)}));return true;
+  }
+  if(message?.type==='MSA_OPEN_LIBRARY'){
+    if(!extensionSender(sender)&&!trusted(sender)){respond({ok:false,reason:'不允許的管理入口來源。'});return false;}
+    openLibrary(message,sender).then(respond,error=>respond({ok:false,reason:String(error.message||error)}));return true;
+  }
+  if(message?.type==='MSA_NOTE_ACTION'){
+    if(!extensionSender(sender)&&!trusted(sender)){respond({ok:false,reason:'不允許的筆記來源。'});return false;}
+    enqueue('workspace',()=>noteAction(message,sender)).then(respond,error=>respond({ok:false,reason:String(error.message||error)}));return true;
+  }
+  if(message?.type==='MSA_LIBRARY_ACTION'){
+    if(!extensionSender(sender)){respond({ok:false,error:'只能從本機資料管理頁操作。'});return false;}
+    enqueue('workspace',()=>libraryAction(message)).then(respond,error=>respond({ok:false,error:String(error.message||error)}));return true;
+  }
   if (message?.type === 'MSA_SHOW_LIVE_PANEL') {
     if (!extensionSender(sender)) { respond({ok:false,reason:'不允許的小窗操作來源。'}); return false; }
     showLivePanel().then(respond, error => respond({ok:false,reason:String(error.message || error)}));
@@ -131,7 +254,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (!trusted(sender) || !message || !['MSA_RECORD', 'MSA_LOG', 'MSA_STATUS','MSA_CAPTURE_GAP'].includes(message.type)) return false;
   const tabId = sender.tab.id;
   const statusKey = `msa.status.${tabId}`;
-  const senderGame = new URL(sender.url).pathname.split('/')[2];
+  const senderGame = senderGameId(sender);
   if (message.type === 'MSA_CAPTURE_GAP') {
     const id = `${message.gameId}.${message.runId}`, key = `msa.session.${id}`;
     const owner = runOwners.get(id);
@@ -161,6 +284,8 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     enqueue(`tab:${tabId}`, () => tabGames.get(tabId) !== senderGame ? undefined : chrome.storage.local.set({[statusKey]: {
       updatedAt: new Date().toISOString(), message: String(status.message || '').slice(0, 300),
       quality: String(status.quality || 'unavailable').slice(0, 30),
+      version:String(status.version||'').slice(0,30),runId:UUID.test(status.runId||'')?status.runId:'',
+      pendingCount:Math.max(0,Math.min(512,Number(status.pendingCount)||0)),lastSavedAt:String(status.lastSavedAt||'').slice(0,40),
       gameId: String(status.gameId || '').slice(0, 40), playerName: String(status.playerName || '').slice(0, 100)
     }})).then(() => respond({ok:true}), error => respond({ok:false,error:error.message}));
     return true;
@@ -168,7 +293,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   const {gameId, runId, playerName, snapshot, batch} = message;
   const isLog = message.type === 'MSA_LOG';
   if (!UUID.test(gameId || '') || !UUID.test(runId || '') ||
-      new URL(sender.url).pathname.split('/')[2] !== gameId ||
+      senderGame !== gameId ||
       (isLog ? !batch || !Array.isArray(batch.rows) || batch.rows.length > 12000 || JSON.stringify(batch).length > 1500000 :
         !snapshot || JSON.stringify(snapshot).length > 20000)) {
     respond({ok:false,error:'無效的紀錄格式'}); return false;

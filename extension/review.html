@@ -5,8 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>MSA 本機對局回顧</title>
     <link rel="stylesheet" href="review.css">
+    <link rel="stylesheet" href="review-workspace.css">
     <script src="recorder-core.js" defer></script>
     <script src="battle-log-core.js" defer></script>
+    <script src="annotations-core.js" defer></script>
+    <script src="review-workspace.js" defer></script>
     <script src="review.js" defer></script>
   </head>
   <body>
@@ -73,6 +76,8 @@
           <ul id="review-warnings" class="warning-list" hidden></ul>
           <p id="capture-reminder" class="capture-reminder">公開 Log 完整不代表手牌全程完整；未觀察的歷史手牌無法補回。</p>
         </section>
+
+        <section id="workspace-notes" aria-label="對局書籤與筆記"></section>
 
         <div class="review-layout">
           <aside class="turn-sidebar" aria-label="回合導覽">

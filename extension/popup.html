@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="popup.css">
     <script src="recorder-core.js" defer></script>
     <script src="battle-log-core.js" defer></script>
+    <script src="annotations-core.js" defer></script>
+    <script src="review-workspace.js" defer></script>
     <script src="popup.js" defer></script>
   </head>
   <body>
@@ -36,6 +38,16 @@
         </div>
         <p id="status-summary" class="secondary status-summary">正在確認已儲存的觀察。</p>
         <button id="show-live-panel" class="button live-panel-button" type="button">顯示對戰側邊小窗 ↗</button>
+        <div class="utility-actions" aria-label="記錄檢查與資料管理">
+          <button id="run-diagnostics" class="button" type="button">記錄自檢</button>
+          <button id="open-library" class="button" type="button">資料與牌組</button>
+        </div>
+        <details id="diagnostics-panel" class="diagnostics-panel" hidden>
+          <summary>目前分頁自檢結果</summary>
+          <p id="diagnostics-meta" class="micro"></p>
+          <ul id="diagnostics-results" class="diagnostics-results" aria-live="polite"></ul>
+          <p id="diagnostics-summary" class="micro"></p>
+        </details>
         <details id="status-details" class="status-details">
           <summary>最近分頁回報</summary>
           <p id="status-message" class="secondary status-message">正在讀取本機資料。</p>

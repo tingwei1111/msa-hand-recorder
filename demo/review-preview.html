@@ -5,13 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>MSA 本機對局回顧</title>
     <link rel="stylesheet" href="../extension/review.css">
+    <link rel="stylesheet" href="../extension/review-workspace.css">
     <script src="../extension/recorder-core.js" defer></script>
     <script src="../extension/battle-log-core.js" defer></script>
+    <script src="../extension/annotations-core.js" defer></script>
+    <script src="../extension/review-workspace.js" defer></script>
+    <script src="../extension/diagnostics-core.js" defer></script>
+    <script src="../extension/library-core.js" defer></script>
+    <script src="../extension/library-store.js" defer></script>
+    <script src="workspace-mock.js" defer></script>
     <script src="popup-mock.js" defer></script>
     <script src="../extension/review.js" defer></script>
   </head>
   <body>
-    <div style="padding:7px 12px;text-align:center;background:#e9efdf;color:#374b28;font:11px/1.5 system-ui,sans-serif">介面預覽 · 合成資料，未連線至 MSA</div>
+    <div style="padding:7px 12px;text-align:center;background:#e9efdf;color:#374b28;font:11px/1.5 system-ui,sans-serif">介面預覽 · 合成資料，未連線至 MSA；查卡只查詢官方公開卡片來源</div>
     <a class="skip-link" href="#turn-content">跳至選取回合</a>
     <header class="page-header">
       <div class="header-inner">
@@ -75,6 +82,8 @@
           <ul id="review-warnings" class="warning-list" hidden></ul>
           <p id="capture-reminder" class="capture-reminder">公開 Log 完整不代表手牌全程完整；未觀察的歷史手牌無法補回。</p>
         </section>
+
+        <section id="workspace-notes" aria-label="對局書籤與筆記"></section>
 
         <div class="review-layout">
           <aside class="turn-sidebar" aria-label="回合導覽">

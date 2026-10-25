@@ -52,7 +52,7 @@ test('exports the same dependency-free API for CommonJS and browser scripts', ()
 });
 
 test('normalizes every supported code family and parallel image suffixes', () => {
-  for (const code of ['GD05-002', 'ST04-010', 'EB01-054', 'EXB-001', 'EXR-001', 'R-001', 'T-021']) {
+  for (const code of ['GD05-002', 'ST04-010', 'EB01-054', 'SC01-001', 'SLB01-001', 'PR-001', 'P-001', 'EXB-001', 'EXR-001', 'R-001', 'T-021']) {
     assert.equal(core.normalizeCardCode(code.toLowerCase()), code);
     assert.equal(core.normalizeCardCode(`https://example.test/cards/${code}_p1.webp?version=2`), code);
     assert.equal(core.normalizeCardCode(`${code}_parallel_02.png`), code);
