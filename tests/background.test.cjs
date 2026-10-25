@@ -27,6 +27,14 @@ function record(phase='MAIN'){return {type:'MSA_RECORD',gameId,runId,playerName:
  timestamp:'2026-10-24T03:00:00Z',turn:null,turnSource:'phase-observed',observedTurn:1,activePlayer:'測試玩家',phase,
  hand:[{cardCode:'GD05-002',count:2}],expectedCount:2,unknownCount:0,quality:'complete',reason:'visible-hand-dom-slots'
 }};}
+test('oversized rejected Log cannot block the following valid hand observation',async()=>{
+ const {createWriteQueue}=require('../extension/capture-coordinator.js');
+ const h=harness(),queue=createWriteQueue({write:payload=>h.send(payload)});
+ queue.enqueue({type:'MSA_LOG',gameId,runId,playerName:'',batch:{rows:Array.from({length:12001},()=>({text:'Synthetic row'}))}});
+ queue.enqueue(record());assert.equal((await queue.flush()).ok,true);
+ assert.equal(queue.state().quarantinedCount,1);
+ assert.equal(h.db[`msa.session.${gameId}.${runId}`].snapshots.length,1);
+});
 function log(rows){return {type:'MSA_LOG',gameId,runId,playerName:'',batch:{
  observedAt:'2026-10-24T03:00:00Z',order:'oldest-first',completeFromStart:true,ended:false,
  players:['測試玩家','測試對手'],structure:'msa-drawer-v1',rows:rows||[

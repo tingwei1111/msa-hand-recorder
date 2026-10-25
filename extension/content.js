@@ -31,7 +31,7 @@
           captureNote:current.captureNote,statusMessage:current.statusMessage || '',quality:current.lastQuality
           ,healthAlerts:current.healthAlerts || [],endObserved:Boolean(current.endObservedAt)
         } : null,
-        project:MSALivePanelCore.project,
+        project:MSALivePanelCore.createProjector?.() || MSALivePanelCore.project,
         createUI:MSALivePanelUI.create,
         onCapture:async requested => {
           const ctx = current;
@@ -97,6 +97,13 @@
       if(payload.type==='MSA_RECORD'){ctx.savedSignature=observationSignature(payload.snapshot);ctx.lastSavedAt=new Date().toISOString();}
       ctx.writeError = ''; ctx.writeErrorSince=0;ctx.connectionError = false; publish(ctx, `已保存 ${ctx.snapshotCount} 筆手牌`);
       if (ctx.rejectedCount > ctx.persistedRejectedCount && !ctx.persistingGap) persistOverflow(ctx);
+      persistQuarantine(ctx);
+    },
+    onQuarantine(payload) {
+      const ctx=contexts.get(payload.runId);if(!ctx)return;
+      ctx.quarantinedCount+=1;
+      ctx.captureNote=`${ctx.quarantinedCount} 筆格式異常已隔離；請下載救援備份，有效觀察繼續保存`;
+      persistQuarantine(ctx);publish(ctx,'有隔離原件待備份');
     },
     onError(payload,error) {
       const ctx = contexts.get(payload.runId); if (!ctx) return;
@@ -124,6 +131,7 @@
       snapshotCount:0,eventCount:0,lastQuality:'unavailable',sessionIds:new Set(),coverage:null,statusSignature:'',
       captureNote:'',writeError:'',healthAlerts:[],healthDismissed:{},healthSignature:'',writeErrorSince:0,
       changedAt:0,observedSignature:'',savedSignature:'',lastSavedAt:'',handExpected:false,handExpectedAt:0,endObservedAt:0,
+      quarantinedCount:0,persistedQuarantinedCount:0,persistingQuarantine:false,
       rejectedCount:0,persistedRejectedCount:0,persistingGap:false,nextGapAttemptAt:0,lastRejectedSignature:'',autoStartDone:false,autoEndDone:false,autoAttempts:{start:0,end:0},nextAutoAt:0,writer:createWriter()};
     current = ctx; contexts.set(ctx.runId,ctx); publish(ctx, '已連線，等待可見手牌／公開 Log'); return ctx;
   }
@@ -144,6 +152,14 @@
     chrome.runtime.sendMessage({type:'MSA_CAPTURE_GAP',gameId:ctx.gameId,runId:ctx.runId,issue:{code:'buffer-full',pendingCount:difference}})
       .then(result => { if (result?.ok) ctx.persistedRejectedCount = count; })
       .catch(() => {}).finally(() => { ctx.persistingGap = false; });
+  }
+  function persistQuarantine(ctx) {
+    if(ctx.persistingQuarantine || ctx.quarantinedCount<=ctx.persistedQuarantinedCount || !ctx.snapshotCount && !ctx.eventCount)return;
+    const count=ctx.quarantinedCount;ctx.persistingQuarantine=true;
+    chrome.runtime.sendMessage({type:'MSA_CAPTURE_GAP',gameId:ctx.gameId,runId:ctx.runId,
+      issue:{code:'record-rejected',pendingCount:count-ctx.persistedQuarantinedCount}})
+      .then(result=>{if(result?.ok)ctx.persistedQuarantinedCount=count;}).catch(()=>{})
+      .finally(()=>{ctx.persistingQuarantine=false;});
   }
   function updateTurn(ctx,view) {
     if (view.activeSide && view.activeSide !== ctx.activeSide) {
@@ -338,11 +354,19 @@
   }
   for (const name of ['pointerdown','pointerup','pointercancel','keydown','input','wheel']) document.addEventListener(name,interacted,{capture:true,passive:true});
   chrome.runtime.onMessage.addListener((message,sender,respond) => {
+    if(message?.type==='MSA_RESCUE_QUERY'){
+      if(!chrome.runtime.id || sender?.id!==chrome.runtime.id)return false;
+      const records=[...contexts.values()].map(ctx=>({gameId:ctx.gameId,runId:ctx.runId,playerName:ctx.playerName,
+        ...ctx.writer.rescue()})).filter(item=>item.pending.length || item.quarantined.length);
+      respond({ok:true,backup:{format:'msa-unsaved-rescue',schemaVersion:1,exportedAt:new Date().toISOString(),
+        warning:'未確認保存的原始觀察；不代表完整對局，不可直接作為已存紀錄匯入。',records}});return false;
+    }
     if(message?.type==='MSA_DIAGNOSTICS_QUERY'){
       if(!chrome.runtime.id||sender?.id!==chrome.runtime.id)return false;
       sample({skipAuto:true});
       const ctx=current;
       respond({connected:Boolean(ctx&&sameContext(ctx)),version:globalThis.MSARecorderCore?.VERSION || '',
+        pageType:gameId()?'game':'lobby',engine:globalThis.MSADeckTrackerCore?.engineStatus?.() || {state:'unavailable'},
         ready,enabled:settings.enabled,gameId:gameId(),runId:ctx?.runId || '',playerName:ctx?.playerName || '',
         pendingCount:ctx?.writer.state().pendingCount || 0,writeError:ctx?.writeError || (ctx?.connectionError?'記錄器連線中斷':''),quality:ctx?.lastQuality || 'unavailable',
         snapshotCount:ctx?.snapshotCount || 0,eventCount:ctx?.eventCount || 0,lastSavedAt:ctx?.lastSavedAt || '',

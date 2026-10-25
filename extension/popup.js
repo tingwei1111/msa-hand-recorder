@@ -34,6 +34,7 @@
   let panelBusy = false;
   let diagnosticsBusy = false;
   let latestStatus = null;
+  let activePageReport=null,pageReportPromise;
   const actionLabels = {
     'export-json': '下載 JSON', 'export-csv': '手牌 CSV', 'sync-log': '更新 Log',
     'delete-session': '刪除此段紀錄', 'open-review': '開啟對局回顧', 'refresh': '重新整理'
@@ -130,6 +131,8 @@
     if (!settings.enabled) {
       label = '新觀察已暫停';
       summary = hasSaved ? '已儲存的資料仍可回顧與備份。' : '啟用後，請在開局前重新整理 MSA 分頁。';
+    } else if (activePageReport?.pageType==='lobby' && !activePageReport.hasErrors) {
+      label='大廳待命中';tone='saved';summary='已連線至 MSA；進入對局後開始記錄，既有對局可隨時回顧。';
     } else if (reportedError) {
       label = '最近分頁需要處理'; tone = 'error';
       summary = hasSaved ? '已有本機資料；最近分頁回報異常，請展開核對。' : '尚未確認資料存妥，請展開查看分頁回報。';
@@ -331,6 +334,10 @@
       renderSettings();
       renderStatus(latestStatus);
       renderSessions();
+      if(!pageReportPromise)pageReportPromise=chrome.runtime.sendMessage({type:'MSA_RUN_DIAGNOSTICS'}).then(result=>{
+        if(result?.report){activePageReport=result.report;renderStatus(latestStatus);}
+      }).catch(()=>{});
+      if(globalThis.MSAStorageHealth)MSAStorageHealth.measure(chrome.storage.local).then(health=>MSAStorageHealth.render(document,health));
       return true;
     } catch (error) {
       reportError('無法讀取本機記錄。請重新開啟擴充功能後再試。', error);
@@ -409,17 +416,27 @@
     try{
       const result=await chrome.runtime.sendMessage({type:'MSA_RUN_DIAGNOSTICS'});
       if(!result?.ok||!result.report)throw new Error(result?.error || '新版自檢模組尚未回應。');
-      const report=result.report;$('diagnostics-panel').hidden=false;$('diagnostics-panel').open=true;
-      $('diagnostics-meta').textContent=`v${report.extensionVersion||'未知'} · 對局 ${report.gameId?String(report.gameId).slice(0,8):'未確認'} · ${dateText(report.checkedAt)}`;
+      const report=result.report;activePageReport=report;renderStatus(latestStatus);$('diagnostics-panel').hidden=false;$('diagnostics-panel').open=true;
+      $('diagnostics-meta').textContent=`v${report.extensionVersion||'未知'} · ${report.pageType==='lobby'?'大廳待命':`對局 ${report.gameId?String(report.gameId).slice(0,8):'未確認'}`} · ${dateText(report.checkedAt)}`;
       $('diagnostics-results').replaceChildren();
       for(const check of report.checks || []){
-        const li=document.createElement('li');li.className=['pass','warning','error'].includes(check.level)?check.level:'warning';
+        const li=document.createElement('li');li.className=['pass','info','warning','error'].includes(check.level)?check.level:'warning';
         const title=document.createElement('strong');title.textContent=check.label;
         const detail=document.createElement('p');detail.textContent=check.detail;li.append(title,detail);$('diagnostics-results').append(li);
       }
       $('diagnostics-summary').textContent=report.summary;
     }catch(error){reportError('記錄自檢未能完成。',error);}
     finally{diagnosticsBusy=false;updateControls();$('run-diagnostics').textContent='記錄自檢';}
+  });
+  $('download-rescue')?.addEventListener('click',async()=>{
+    const button=$('download-rescue');button.disabled=true;
+    try{
+      const result=await chrome.runtime.sendMessage({type:'MSA_GET_RESCUE'});
+      if(!result?.ok)throw new Error(result?.error||'救援備份未能完成。');
+      if(!result.backup?.records?.length){showNotice('目前分頁沒有待存或隔離的觀察。');return;}
+      downloadFile(JSON.stringify(result.backup,null,2),'json','application/json;charset=utf-8',{gameId:'unsaved-rescue'});
+      showNotice('救援 JSON 已開始下載；請保留原 MSA 分頁直到確認檔案。此檔包含未確認存入的原始觀察。');
+    }catch(error){reportError('無法下載救援備份。',error);}finally{button.disabled=false;}
   });
   $('show-live-panel').addEventListener('click', async () => {
     if (panelBusy || exportBusy || deleteBusy || refreshBusy) return;

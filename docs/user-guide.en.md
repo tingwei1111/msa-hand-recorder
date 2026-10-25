@@ -2,11 +2,23 @@
 
 **English** · [繁體中文](使用教學.md) · [Project home](../README.en.md) · [Download releases](https://github.com/tingwei1111/msa-hand-recorder/releases)
 
-This guide covers the **v0.8.0 prerelease** for desktop Google Chrome. MSA Hand Recorder saves observations of your own visible hand and both players' public Battle Log in Mobile Suit Arena. It provides an in-game panel, a deck list with observed counts, match review, bookmarks, deck versions, manually confirmed results, and local backup/restore.
+This guide covers the **v0.9.0 prerelease** for desktop Google Chrome. MSA Hand Recorder saves observations of your own visible hand and both players' public Battle Log in Mobile Suit Arena. It provides an in-game panel, a deck list with observed counts, match review, bookmarks, deck versions, manually confirmed results, and local backup/restore.
 
 **The extension interface is currently in Traditional Chinese.** This English guide translates the controls so that you can follow the existing interface; it does not add an English interface or a language switch. Screenshots below show the Chinese interface with synthetic demonstration data.
 
 **A complete live match has not yet been validated end to end.** Start with a test match and compare the saved card IDs, counts, turns, and public events with the game. A successful save, a fully recognized snapshot, and a public log containing the start and end are different kinds of evidence; none proves that every hand change was captured.
+
+## New controls in v0.9
+
+| Chinese control | Where and how to use it |
+| --- | --- |
+| 本機儲存空間 / Local storage | At the bottom of the popup and the top of Data & decks. It shows actual used MiB and reminders at 80%/95%. Back up important records when prompted; old records are not deleted automatically. |
+| 下載未存資料救援 JSON / Rescue unsaved data | Keep the original MSA tab open, expand 儲存遇到問題？ at the bottom of the popup, then download the rescue JSON. This preserves pending/isolated originals, is separate from an ordinary full backup, and cannot currently be imported directly. |
+| 直接匯出已存資料 / Export saved data directly | In Match review, check this option, choose a format, and click Export. It skips waiting for an MSA refresh and explicitly marks that fact in the export. |
+| 保存對局確認 / Save match confirmation | Unsaved match drafts survive deck saves and library list updates. Press this button to store a draft formally; save before closing the page. |
+| 大廳待命中 / Lobby standby | This is a normal lobby state. Diagnostics independently check page versions and the deck engine; verify hand/Log observations after entering a match. |
+
+See the [v0.9 change notes](v0.9.md#english) for before/after behavior, screenshots, and validation limits.
 
 ## Contents
 
@@ -41,14 +53,14 @@ You do not need to take screenshots for routine recording. The recorder observes
 
 ### First installation
 
-1. Open [GitHub Releases](https://github.com/tingwei1111/msa-hand-recorder/releases). Expand the release's **Assets** and download its install ZIP, for example `msa-hand-recorder-v0.8.0.zip`.
+1. Open [GitHub Releases](https://github.com/tingwei1111/msa-hand-recorder/releases). Expand the release's **Assets** and download its install ZIP, for example `msa-hand-recorder-v0.9.0.zip`.
 2. Extract the ZIP to a permanent folder. Keep this folder after installation; Chrome reads the unpacked extension from it.
 3. Enter `chrome://extensions` directly in Chrome's address bar and enable **Developer mode**.
 4. Click **Load unpacked** and select the extracted **`extension` subfolder**, which contains `manifest.json`.
 5. Pin **MSA 手牌記錄器** in Chrome's extensions menu, then refresh MSA before starting a match.
 
 ```text
-msa-hand-recorder-v0.8.0/
+msa-hand-recorder-v0.9.0/
 ├── README.md
 ├── docs/
 └── extension/          ← select this folder in Chrome
@@ -92,7 +104,7 @@ The extension stores records locally with Chrome's `storage` permission. Its MSA
 
 If updating from an older release produces a Chrome permission prompt, check that it matches the documented official-card domain. The recorder does not need access to MSA's private backend, cookies, or unrelated websites.
 
-In v0.8.0 the deck projection is calculated by Rust compiled to WebAssembly. The visible-page capture, recording, Chrome storage, panel, and backup format retain their existing roles. This migration does not promise a speed improvement. See the [Rust/Wasm technical reference](Rust-Wasm.en.md) for build details.
+In v0.9.0 the deck projection is calculated by Rust compiled to WebAssembly. The visible-page capture, recording, Chrome storage, panel, and backup format retain their existing roles. This migration does not promise a speed improvement. See the [Rust/Wasm technical reference](Rust-Wasm.en.md) for build details.
 
 ## 3. Configure and check recording
 

@@ -2,6 +2,16 @@
   'use strict';
   const core=globalThis.MSALibraryCore,$=id=>document.getElementById(id);
   let values={},busy=false,importState=null,deckBase=null,preferredSession=new URLSearchParams(location.search).get('id')||new URLSearchParams(location.search).get('session')||'';
+  const matchDrafts=new Map(),draftFields=['match-player','identity-confirmed','result-confirmed','match-result','match-order','match-deck'];
+  let displayedSession='',deckDirty=false,reloadTimer,loading=false,pendingReload=false;
+  function rememberDraft(){
+    if(!displayedSession)return;
+    const record=values['msa.session.'+displayedSession];
+    matchDrafts.set(displayedSession,{sourcePlayer:record?.playerName||'',fields:Object.fromEntries(draftFields.map(id=>[id,$(id).type==='checkbox'?$(id).checked:$(id).value]))});
+  }
+  function draftLabel(){
+    if($('draft-status'))$('draft-status').hidden=!matchDrafts.has(displayedSession);
+  }
   const displayTime=value=>value && Number.isFinite(Date.parse(value))?new Date(value).toLocaleString('zh-TW'):'時間未知';
   const short=value=>String(value||'').slice(0,12);
   const records=prefix=>Object.entries(values).filter(([key,value])=>key.startsWith(prefix)&&value&&typeof value==='object').map(([,value])=>value);
@@ -29,16 +39,19 @@
     if(busy)return;busy=true;const controls=[...document.querySelectorAll('button,input,select,textarea')],states=controls.map(node=>[node,node.disabled]);
     controls.forEach(node=>{node.disabled=true;});document.body.setAttribute('aria-busy','true');
     try{await operation();}catch(error){notice(String(error?.message||error),'error');}
-    finally{busy=false;states.forEach(([node,disabled])=>{if(node.isConnected)node.disabled=disabled;});document.body.removeAttribute('aria-busy');updateButtons();}
+    finally{busy=false;states.forEach(([node,disabled])=>{if(node.isConnected)node.disabled=disabled;});document.body.removeAttribute('aria-busy');updateButtons();if(pendingReload){pendingReload=false;scheduleReload();}}
   }
   function requireSuccess(result){if(!result.ok)throw new Error(result.error||'操作未完成。');return result;}
   function updateButtons(){
-    $('confirm-import').disabled=busy||!importState?.previewToken||!importState.summary?.writes;
+    $('confirm-import').disabled=busy||!importState?.previewToken||!importState.summary?.writes||Boolean(importState.capacity&&importState.capacity.projected>importState.capacity.limit);
     const main=core.parseDeck($('deck-main').value),resource=core.parseDeck($('deck-resources').value,'resources'),token=core.parseDeck($('deck-tokens').value,'tokens');
     $('save-deck').disabled=busy||!$('deck-name').value.trim()||!main.ok||!resource.ok||!token.ok;
     $('save-match').disabled=busy||!$('match-session').value;
   }
   async function load(){
+    if(loading){pendingReload=true;return;}
+    loading=true;
+    try{
     values=await chrome.storage.local.get(null);
     const all=sessions(),versions=decks();
     $('workspace-count').textContent=`${all.length} 段對局 · ${versions.length} 個牌組版本 · ${records('msa.note.').length} 筆註記`;
@@ -47,7 +60,10 @@
     options($('match-deck'),deckOptions,'尚未綁定牌組');options($('stats-deck'),deckOptions,'全部版本');
     options($('match-session'),all.map(record=>({value:record.id,label:`${record.playerName||'未辨識玩家／僅公開 Log'} · ${short(record.gameId)} · ${displayTime(record.startedAt)}`})),all.length?null:'尚無本機對局',preferredSession||undefined);
     preferredSession='';renderArchives();renderStats();renderMatch();updateButtons();
+    if(globalThis.MSAStorageHealth)MSAStorageHealth.render(document,await MSAStorageHealth.measure(chrome.storage.local));
+    }finally{loading=false;if(pendingReload){pendingReload=false;scheduleReload();}}
   }
+  function scheduleReload(){clearTimeout(reloadTimer);reloadTimer=setTimeout(()=>{if(busy||loading){pendingReload=true;return;}load().catch(error=>notice(error.message,'error'));},180);}
   function renderArchives(){
     const target=$('archives');target.replaceChildren();
     const archives=records('msa.import.').sort((a,b)=>String(b.importedAt).localeCompare(String(a.importedAt)));
@@ -82,6 +98,7 @@
     updateButtons();
   }
   function loadDeck(id){
+    deckDirty=false;
     deckBase=values['msa.deck.'+id]||null;
     const text=cards=>(cards||[]).map(card=>`${card.count}x${card.cardCode}`).join('\n');
     $('deck-name').value=deckBase?.name||'';$('deck-main').value=text(deckBase?.main);
@@ -96,6 +113,12 @@
     $('match-player').value=record?.playerName||'';$('match-player').readOnly=Boolean(record?.playerName?.trim());
     $('identity-confirmed').checked=false;$('result-confirmed').checked=false;$('match-result').value='unknown';$('match-order').value='unknown';$('match-deck').value='';$('match-saved').textContent='';
     loadMatchConfirmation();
+    displayedSession=record?.id||'';
+    const draft=matchDrafts.get(displayedSession);
+    if(draft&&draft.sourcePlayer===(record?.playerName||''))for(const[id,value]of Object.entries(draft.fields)){
+      if($(id).type==='checkbox')$(id).checked=value;else $(id).value=value;
+    }else matchDrafts.delete(displayedSession);
+    draftLabel();
   }
   function loadMatchConfirmation(){
     const record=selectedSession(),player=$('match-player').value.trim();if(!record||!player)return;
@@ -151,7 +174,10 @@
       mainText:$('deck-main').value,resourcesText:$('deck-resources').value,tokensText:$('deck-tokens').value}}));
     await load();$('deck-version').value=result.record.id;loadDeck(result.record.id);notice(result.existing?'此內容的版本已存在，保留原版本。':'新牌組版本已保存；既有版本與綁定對局未改動。');
   });});
-  $('match-session').addEventListener('change',renderMatch);
+  $('match-session').addEventListener('change',()=>{renderMatch();});
+  $('match-form').addEventListener('input',event=>{if(event.target.id!=='match-session'){rememberDraft();draftLabel();}});
+  $('match-form').addEventListener('change',event=>{if(event.target.id!=='match-session'){rememberDraft();draftLabel();}});
+  $('deck-form').addEventListener('input',()=>{deckDirty=true;});
   $('match-player').addEventListener('input',()=>{$('identity-confirmed').checked=false;$('result-confirmed').checked=false;$('match-saved').textContent='';});
   $('match-result').addEventListener('change',()=>{$('result-confirmed').checked=false;});
   $('match-form').addEventListener('submit',event=>{event.preventDefault();perform(async()=>{
@@ -159,8 +185,11 @@
     requireSuccess(await action('saveMatch',{draft:{sourceSessionId:source.id,gameId:source.gameId,playerName:$('match-player').value,
       identityConfirmed:$('identity-confirmed').checked,deckVersionId:$('match-deck').value,firstPlayer:$('match-order').value,
       result:$('match-result').value,resultConfirmed:$('result-confirmed').checked}}));
-    preferredSession=source.id;await load();notice('對局確認已保存。這場只計算一次；牌組版本已凍結。');
+    matchDrafts.delete(source.id);preferredSession=source.id;await load();notice('對局確認已保存。這場只計算一次；牌組版本已凍結。');
   });});
   $('stats-deck').addEventListener('change',renderStats);$('stats-order').addEventListener('change',renderStats);
+  chrome.storage.onChanged?.addListener((changes,area)=>{if(area==='local'&&Object.keys(changes).some(key=>/^msa\.(session|deck|match|note|import)\./.test(key)))scheduleReload();});
+  $('refresh-library')?.addEventListener('click',()=>perform(()=>load()));
+  window.addEventListener('beforeunload',event=>{if(deckDirty||matchDrafts.size){event.preventDefault();event.returnValue='';}});
   perform(async()=>{await load();renderDeckValidation();});
 })();

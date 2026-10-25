@@ -17,6 +17,7 @@
     try{const stored=shared?parsed():null;replace(stored||options.seed||{});if(shared&&!stored)localStorage.setItem(STORE,JSON.stringify(database));}
     catch(error){replace(options.seed||{});options.initialStorageError=String(error.message||error);}
     const storage={local:{
+      QUOTA_BYTES:10485760,async getBytesInUse(){refresh();return new TextEncoder().encode(JSON.stringify(database)).length;},
       async get(keys){if(options.scenario==='storage-error'||options.initialStorageError)throw new Error(options.initialStorageError||'合成測試：無法讀取本機儲存空間');refresh();
         if(keys==null)return copy(database);const names=Array.isArray(keys)?keys:typeof keys==='object'?Object.keys(keys):[keys];
         return Object.fromEntries(names.filter(key=>Object.hasOwn(database,key)||typeof keys==='object'&&!Array.isArray(keys)).map(key=>[key,copy(Object.hasOwn(database,key)?database[key]:keys[key]) ]));},

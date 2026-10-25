@@ -11,9 +11,9 @@
     })]).finally(() => clearTimeout(timer));
   }
   function createWriteQueue(options) {
-    const jobs = [];
+    const jobs = [], quarantined = [];
     let running = null, lastError = '', nextRetryAt = 0, rejectedCount = 0, suspended = false;
-    const state = () => ({pendingCount:jobs.length, lastError, rejectedCount, suspended});
+    const state = () => ({pendingCount:jobs.length, quarantinedCount:quarantined.length, lastError, rejectedCount, suspended});
     function pump(force = false) {
       if (running) return running;
       if (suspended || !jobs.length || (!force && Date.now() < nextRetryAt)) return Promise.resolve();
@@ -24,6 +24,14 @@
             // Do not time out the write itself: retrying an unresolved write can
             // append it twice. Only callers' waits have a time limit.
             const result = await options.write(payload);
+            if (result?.ok === false && result.retryable === false) {
+              // Preserve the rejected original, but do not let a permanently
+              // invalid Log block valid hand observations behind it.
+              const item = {payload,error:String(result.error || 'record-rejected'),code:result.code || 'record-rejected',quarantinedAt:new Date().toISOString()};
+              quarantined.push(item); jobs.shift(); lastError = ''; nextRetryAt = 0;
+              try { options.onQuarantine?.(payload, item); } catch (_) {}
+              continue;
+            }
             if (!result?.ok || result.paused) throw new Error(result?.error || (result?.paused ? 'recording-paused' : 'write-failed'));
             jobs.shift(); lastError = ''; nextRetryAt = 0;
             try { options.onResult?.(payload, result); } catch (_) {}
@@ -38,7 +46,7 @@
     }
     return Object.freeze({
       enqueue(payload) {
-        if (suspended || jobs.length >= (options.maxPending || 512)) {
+        if (suspended || jobs.length + quarantined.length >= (options.maxPending || 512)) {
           rejectedCount += 1;
           return {accepted:false, reason:'buffer-full', ...state()};
         }
@@ -46,6 +54,7 @@
         void pump(); return {accepted:true, ...state()};
       },
       retry: () => pump(), state,
+      rescue: () => JSON.parse(JSON.stringify({pending:jobs,quarantined})),
       suspend(reason) { suspended = true; lastError = reason || 'context-changed'; return state(); },
       async flush(milliseconds = 9000) {
         try { await withTimeout(pump(true), milliseconds, 'storage-timeout'); }

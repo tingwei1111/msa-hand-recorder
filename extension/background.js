@@ -254,6 +254,14 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     if(!extensionSender(sender)){respond({ok:false,error:'不允許的自檢來源。'});return false;}
     diagnosticsForActivePage().then(respond,error=>respond({ok:false,error:String(error.message||error)}));return true;
   }
+  if(message?.type==='MSA_GET_RESCUE'){
+    if(!extensionSender(sender)){respond({ok:false,error:'不允許的救援備份來源。'});return false;}
+    (async()=>{
+      const tabs=await chrome.tabs.query({active:true,currentWindow:true});
+      if(!tabs[0]?.id)return {ok:false,error:'請切到仍開著的 MSA 分頁。'};
+      return timeout(chrome.tabs.sendMessage(tabs[0].id,{type:'MSA_RESCUE_QUERY'},{frameId:0}),5000);
+    })().then(respond,error=>respond({ok:false,error:'無法取得分頁暫存；請切到原 MSA 分頁並保持開啟。'}));return true;
+  }
   if(message?.type==='MSA_OPEN_LIBRARY'){
     if(!extensionSender(sender)&&!trusted(sender)){respond({ok:false,reason:'不允許的管理入口來源。'});return false;}
     openLibrary(message,sender).then(respond,error=>respond({ok:false,reason:String(error.message||error)}));return true;
@@ -308,10 +316,10 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
       const session = values[key];
       const source = owner || session.captureSource;
       if (!source || source.tabId !== tabId || source.documentId !== sender.documentId) return {ok:false,error:'無法確認舊紀錄來源'};
-      const overflow = message.issue?.code === 'buffer-full';
-      const issue = {code:overflow ? 'buffer-full' : 'context-changed-pending',observedAt:new Date().toISOString(),
+      const overflow = message.issue?.code === 'buffer-full', rejected = message.issue?.code === 'record-rejected';
+      const issue = {code:rejected ? 'record-rejected' : overflow ? 'buffer-full' : 'context-changed-pending',observedAt:new Date().toISOString(),
         pendingCount:Math.max(1,Math.min(512,Number(message.issue?.pendingCount) || 1)),
-        reason:overflow ? '暫存已滿，部分已觀察狀態未能排入儲存佇列' : '頁面或記錄設定切換時仍有觀察尚未確認存妥；舊暫存已隔離，未送往其他對局'};
+        reason:rejected ? '部分觀察格式被拒絕，已隔離原件；有效觀察繼續保存，請在原分頁下載救援備份' : overflow ? '暫存已滿，部分已觀察狀態未能排入儲存佇列' : '頁面或記錄設定切換時仍有觀察尚未確認存妥；舊暫存已隔離，未送往其他對局'};
       session.captureIssues = [...(session.captureIssues || []),issue];
       await chrome.storage.local.set({[key]:session}); return {ok:true};
     }).then(respond,error => respond({ok:false,error:error.message}));
@@ -337,7 +345,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
       senderGame !== gameId ||
       (isLog ? !batch || !Array.isArray(batch.rows) || batch.rows.length > 12000 || JSON.stringify(batch).length > 1500000 :
         !snapshot || JSON.stringify(snapshot).length > 20000)) {
-    respond({ok:false,error:'無效的紀錄格式'}); return false;
+    respond({ok:false,code:'invalid-record-format',retryable:false,error:'無效的紀錄格式'}); return false;
   }
   const id = `${gameId}.${runId}`;
   runOwners.set(id,{tabId,documentId:sender.documentId});
@@ -347,10 +355,12 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     if (values['msa.settings']?.enabled === false) return {ok:true,paused:true};
     const existing = values[key] || MSARecorderCore.createSession({id,gameId,playerName:String(playerName || '').slice(0,100),startedAt:isLog ? batch.observedAt : snapshot.timestamp});
     if (!existing.captureSource) existing.captureSource = {tabId,documentId:sender.documentId};
-    if (existing.playerName && playerName && existing.playerName !== playerName) throw new Error('同一紀錄不可混入不同玩家手牌');
+    if (existing.playerName && playerName && existing.playerName !== playerName) return {ok:false,retryable:false,code:'player-mismatch',error:'同一紀錄不可混入不同玩家手牌'};
     // A public-log-only capture can precede the first visible own hand.
     if (!existing.playerName && playerName) existing.playerName=String(playerName).slice(0,100);
-    const session = isLog ? MSABattleLogCore.ingest(existing,batch) : MSARecorderCore.appendSnapshot(existing,snapshot);
+    let session;
+    try { session = isLog ? MSABattleLogCore.ingest(existing,batch) : MSARecorderCore.appendSnapshot(existing,snapshot); }
+    catch(error){return {ok:false,retryable:false,code:'invalid-record-format',error:String(error.message || '無效的紀錄格式')};}
     const eventCount=session.battleLog?.events?.length || 0;
     await chrome.storage.local.set({[key]:session});
     // A delayed old-page write must not overwrite the new page's registration.

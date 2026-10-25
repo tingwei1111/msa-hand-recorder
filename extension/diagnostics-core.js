@@ -38,11 +38,21 @@
     input=input||{};const page=input.page;
     const checks=[];
     const add=(id,level,label,detail)=>checks.push({id,level,label,detail});
-    if(!page?.connected){
+    if(page?.pageType==='lobby'){
+      add('page','info','大廳待命中','已連線至 MSA；進入對局後開始核對手牌與公開 Log。');
+    }else if(!page?.connected){
       add('page','error','尚未連線到本場記錄器',input.reason||'請切到 MSA 對局分頁，更新擴充功能後重新整理該頁。');
-    }else{
+    }
+    if(page?.version){
       const same=Boolean(input.extensionVersion&&page.version&&input.extensionVersion===page.version);
       add('version',same?'pass':'error','擴充功能與分頁版本',same?`兩端均為 v${page.version}`:`擴充功能 v${input.extensionVersion||'未知'}，分頁 v${page.version||'未知'}；請重新整理 MSA 分頁。`);
+    }
+    if(page?.engine){
+      const engine=page.engine;
+      add('engine',engine.state==='ready'?'pass':engine.state==='error'?'error':'warning','牌組運算核心',
+        engine.state==='ready'?'本機牌組核心已就緒。':engine.state==='error'?`核心載入失敗：${engine.reason||'請重新載入擴充功能並整理 MSA 分頁。'}`:'牌組核心尚未就緒；手牌與公開 Log 仍可記錄。');
+    }
+    if(page?.connected){
       add('settings',page.ready&&page.enabled?'pass':'warning','設定與記錄開關',!page.ready?'設定仍在載入。':page.enabled?'自動記錄已啟用；開關狀態不代表已存完整。':'目前已暫停新觀察。');
       add('identity',page.playerName?'pass':'warning','本人身分',page.playerName?`目前確認玩家：${page.playerName}`:'尚未確認本人身分，不借用其他玩家或舊段手牌。');
       if(page.storageCheck)add('storage',page.storageCheck==='verified'?'pass':page.storageCheck==='error'||page.storageCheck==='mismatch'?'error':'warning','本機存檔核對',
@@ -52,7 +62,7 @@
       add('log',page.publicLogComplete?'pass':'warning','公開 Battle Log',page.publicLogComplete?'已存公開 Log 已見起尾；不代表所有手牌時點均已記錄。':`已存 ${page.eventCount||0} 筆公開事件；起尾仍需核對。`);
     }
     return {schemaVersion:1,checkedAt:new Date().toISOString(),extensionVersion:input.extensionVersion||'',
-      gameId:page?.gameId||null,checks,hasErrors:checks.some(c=>c.level==='error'),
+      gameId:page?.gameId||null,pageType:page?.pageType||'unknown',checks,hasErrors:checks.some(c=>c.level==='error'),
       summary:'此自檢只確認版本、已存資料及可見狀態，不能證明整場沒有未觀察瞬間。'};
   }
   return {signature,alerts,report};

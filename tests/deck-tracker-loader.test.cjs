@@ -83,6 +83,16 @@ function assertSavedEvidence(model,record) {
   assert.equal(model.recentPlays[0].actorSide,'own');
   assert.equal(model.statusTone,'success');
 }
+test('identical wire projections reuse Wasm output without sharing mutable results',async()=>{
+  const h=browser();h.succeed();await h.api.ready();
+  const original=h.realm.MSADeckTrackerWasm.project_wire_json;let calls=0;
+  h.realm.MSADeckTrackerWasm.project_wire_json=value=>{calls++;return original(value);};
+  const data=fixture(),input={values:data.values,context:context(),handModel:{},events:[]};
+  const first=h.api.project(input),before=plain(first);
+  first.availableDecks.length=0;
+  assert.deepEqual(plain(h.api.project(input)),before);assert.equal(calls,1);
+  input.context.playerName='Different synthetic player';h.api.project(input);assert.equal(calls,2);
+});
 
 test('browser startup has one shared initialization, one bundled fetch and actual synchronous Rust projection after ready',async()=>{
   const h = browser(),seen = [],disposed = [];

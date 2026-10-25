@@ -9,8 +9,8 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--check", action="store_true", help="Fail if a preview is stale")
 args = parser.parse_args()
 
-banner = ('\n    <div style="padding:7px 12px;text-align:center;background:#e9efdf;'
-          'color:#374b28;font:11px/1.5 system-ui,sans-serif">'
+banner = ('\n    <div style="padding:7px 12px;text-align:center;background:#1a293b;'
+          'color:#b9c9df;font:11px/1.5 system-ui,sans-serif">'
           '介面預覽 · 合成資料，未連線至 MSA；查卡只查詢官方公開卡片來源</div>')
 
 for page in ("popup", "review", "library"):
@@ -20,7 +20,7 @@ for page in ("popup", "review", "library"):
     anchor = f'    <script src="../extension/{page}.js" defer></script>'
     # Library uses two-space indentation; only exact script and body tags matter.
     script_match = re.search(rf'^[ \t]*<script src="\.\./extension/{page}\.js" defer></script>', source, re.M)
-    body_match = re.search(r'<body>', source)
+    body_match = re.search(r'<body\b[^>]*>', source)
     if not script_match or not body_match:
         raise SystemExit(f"Unexpected extension markup: {page}")
     dependencies = []
@@ -31,7 +31,7 @@ for page in ("popup", "review", "library"):
     dependencies += ['    <script src="workspace-mock.js" defer></script>',
                      '    <script src="popup-mock.js" defer></script>']
     source = source[:script_match.start()] + '\n'.join(dependencies) + '\n' + source[script_match.start():]
-    source = source.replace("<body>", "<body>" + banner, 1)
+    source = source.replace(body_match.group(), body_match.group() + banner, 1)
     target = ROOT / "demo" / f"{page}-preview.html"
     if args.check:
         if not target.exists() or target.read_text(encoding="utf-8") != source:
