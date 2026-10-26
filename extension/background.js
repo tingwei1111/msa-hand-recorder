@@ -58,7 +58,10 @@ async function writeObservations(payloads,sender){
   return enqueue(key,async()=>{
     const values=await chrome.storage.local.get([key,'msa.settings']);
     if(values['msa.settings']?.enabled===false)return payloads.map(()=>({ok:true,paused:true}));
-    let session=values[key],changed=false;
+    let session=values[key],changed=false,failuresChanged=false;
+    const failures=new Map((Array.isArray(session?.captureWriteFailures)?session.captureWriteFailures:[])
+      .filter(item=>item&&Number.isSafeInteger(item.sequence)&&item.sequence>0&&typeof item.code==='string'&&typeof item.error==='string')
+      .map(item=>[item.sequence,{sequence:item.sequence,code:item.code,error:item.error}]));
     const results=[],saved=[];
     for(const payload of payloads){
       const invalid=invalidObservation(payload,sender);
@@ -68,6 +71,12 @@ async function writeObservations(payloads,sender){
         results.push({ok:false,retryable:false,code:'source-mismatch',error:'對局頁面或記錄段落不符。'});continue;
       }
       if(session?.playerName&&payload.playerName&&session.playerName!==payload.playerName){results.push({ok:false,retryable:false,code:'player-mismatch',error:'同一紀錄不可混入不同玩家手牌'});continue;}
+      // The high-water mark includes gaps from rejected observations. Restore
+      // their original outcome before treating an old sequence as acknowledged.
+      // Otherwise a lost mixed-batch response could turn a rejected original
+      // into a false success and remove its only persistent rescue copy.
+      const previousFailure=failures.get(payload.sequence);
+      if(previousFailure){results.push({ok:false,retryable:false,code:previousFailure.code,error:previousFailure.error});continue;}
       // This checkpoint lives in the same atomic storage.set as its snapshots.
       // A lost batch acknowledgement can therefore be retried without replaying
       // an earlier A -> B -> A sequence or duplicating public-log captures.
@@ -80,8 +89,18 @@ async function writeObservations(payloads,sender){
         if(!next.playerName&&payload.playerName)next.playerName=String(payload.playerName).slice(0,100);
         if(payload.sequence)next.captureWriteSequence=payload.sequence;
         session=next;changed=true;saved.push(payload);results.push({ok:true});
-      }catch(error){results.push({ok:false,retryable:false,code:'invalid-record-format',error:String(error.message||'無效的紀錄格式')});}
+      }catch(error){
+        const result={ok:false,retryable:false,code:'invalid-record-format',error:String(error.message||'無效的紀錄格式').slice(0,300)};
+        if(payload.sequence){
+          // A run's memory queue is bounded at 512 originals. Never evict a
+          // prior failure if imported/unfamiliar metadata reaches that bound.
+          if(failures.size>=512&&!failures.has(payload.sequence))throw new Error('capture-rejection-history-full');
+          failures.set(payload.sequence,{sequence:payload.sequence,code:result.code,error:result.error});failuresChanged=true;
+        }
+        results.push(result);
+      }
     }
+    if(session&&failuresChanged){session.captureWriteFailures=[...failures.values()].sort((a,b)=>a.sequence-b.sequence);changed=true;}
     if(changed)await chrome.storage.local.set({[key]:session});
     let recoveryCleanupPending=false;
     if(saved.length&&recoveryJournal){try{await recoveryJournal.complete(saved);}catch(_){recoveryCleanupPending=true;}}

@@ -53,6 +53,22 @@ test('a lost acknowledgement can retry an A-B-A batch without duplicate snapshot
  assert.deepEqual(h.db[KEY].snapshots.map(x=>x.phase),['A','B','A']);assert.equal(h.db[KEY].captureWriteSequence,3);
  assert.equal(h.writes.filter(p=>p[KEY]).length,1);
 });
+test('lost mixed-batch acknowledgement preserves a rejected original and outcome across worker restart',async()=>{
+ const h=harness(),bad={type:'MSA_LOG',gameId:GAME,runId:RUN,sequence:1,
+  batch:{rows:[{text:'Game started!',actor:{toString:null},cards:[]}]}};
+ const observations=[bad,record(2)];for(const payload of observations)await h.send({type:'MSA_STAGE_RECORD',payload});
+ const initial=await h.send(batch(observations));
+ assert.equal(initial.results[0].retryable,false);assert.equal(initial.results[1].ok,true);
+ assert.equal(h.db[KEY].captureWriteSequence,2);assert.equal(h.db[KEY].captureWriteFailures[0].sequence,1);
+ assert.equal((await h.journal.backup()).records.length,1);
+ // The source document is unchanged, but worker memory and the first reply
+ // are gone. Only the atomically stored session can distinguish this gap.
+ const restarted=harness({db:h.db,journal:h.journal}),retry=await restarted.send(batch(observations));
+ assert.deepEqual(retry.results[0],initial.results[0]);assert.equal(retry.results[1].ok,true);
+ assert.equal(restarted.writes.filter(p=>p[KEY]).length,0);assert.equal(h.db[KEY].snapshots.length,1);
+ const rescue=await restarted.send({type:'MSA_GET_RESCUE'},extension);
+ assert.deepEqual(rescue.backup.records[0].journal.map(entry=>entry.payload),[bad]);
+});
 test('transient storage failure leaves every staged original and the whole batch can retry atomically',async()=>{
  let fail=true;const h=harness({beforeSet:patch=>{if(patch[KEY]&&fail)throw new Error('synthetic quota');}}),observations=[record(1),record(2)];
  for(const payload of observations)await h.send({type:'MSA_STAGE_RECORD',payload});

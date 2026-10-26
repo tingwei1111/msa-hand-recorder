@@ -30,7 +30,7 @@ This is an independent community tool, not an official Mobile Suit Arena or GUND
 | Extension interface | **Traditional Chinese, Simplified Chinese and English.** Choose “Interface language” at the top of the popup, review or workspace; in the live panel, open “Display settings”. Your choice is saved and synchronized. |
 | Card preview | The English interface requests official English text. Both Chinese interfaces request official Traditional Chinese text. Text and image languages are reported separately; images may differ. |
 | Intended environment | Desktop Google Chrome. Other browsers, phones, and tablets have not been validated. |
-| Validation | v0.11.0 passed 430 JavaScript/Wasm tests and 30 synthetic browser recording checks. The Rust/Wasm core is unchanged from v0.8. **A complete real-player match has not yet been validated end to end.** |
+| Validation | v0.11.0 passed 431 JavaScript/Wasm tests and 30 synthetic browser recording checks. The Rust/Wasm core is unchanged from v0.8. **A complete real-player match has not yet been validated end to end.** |
 
 Start with a practice match and compare card numbers, quantities, turns, and public logs manually. A successful diagnostic check or log start/end markers do not prove that every hand state was captured.
 

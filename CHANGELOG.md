@@ -7,7 +7,7 @@
 - 修正狀態混用語言、回顧日期選單與快取警告未隨語言更新、隔離原件被刷新成功掩蓋等問題。
 - 有界批次合併 session 寫入，保留中間觀察與合法重複事件；序號檢查避免已提交批次重試重複。收合小窗只計算摘要。
 - 獨立 IndexedDB 救援原件可跨重新整理下載，交易完成後才確認持久化；不自動重播、不自動淘汰，下載不清除。一般備份不包含救援區。
-- 430 項 JavaScript／Wasm 測試及 30 項合成瀏覽器回歸通過，真人整場驗證仍未完成。權限與 Wasm binary 不變。
+- 431 項 JavaScript／Wasm 測試及 30 項合成瀏覽器回歸通過，真人整場驗證仍未完成。權限與 Wasm binary 不變。
 - Minimal monochrome UI, draft-preserving workspace tabs, three-language reports, bounded idempotent session batching and a persistent local recovery journal. See [v0.11 details and limits](docs/v0.11.md#english).
 
 ## v0.10.0 — 三語介面公開測試版 / Three-language interface
