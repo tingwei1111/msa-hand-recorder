@@ -48,6 +48,13 @@
     }
     return source;
   }
+  // Structured recorder messages translate only authored templates. Parameters
+  // remain literal, including player text and original browser errors.
+  function status(value) {
+    if (!Array.isArray(value?.messageParts) || !value.messageParts.length) return message(value?.message || '');
+    return value.messageParts.filter(part => part && typeof part.source === 'string')
+      .map(part => t(part.source, ...(Array.isArray(part.params) ? part.params : []))).join(' · ');
+  }
   function notify() {
     for (const binding of bindings) binding();
     for (const listener of [...listeners]) { try { listener(language); } catch (error) { root.console?.error('Language render failed', error); } }
@@ -149,7 +156,7 @@
     return subscribe(update);
   }
   init();
-  return Object.freeze({KEY, languages:Object.freeze(LANGUAGES), t, message, detect, ready:init, setLanguage, subscribe, applyStatic, captureStatic, mount,
+  return Object.freeze({KEY, languages:Object.freeze(LANGUAGES), t, message, status, detect, ready:init, setLanguage, subscribe, applyStatic, captureStatic, mount,
     get language(){return language;}, get htmlLanguage(){return language==='en'?'en':language==='zh-CN'?'zh-Hans':'zh-Hant';},
     get cardLocale(){return language==='en'?'en':'zh-tw';}});
 });

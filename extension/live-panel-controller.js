@@ -78,9 +78,9 @@
     function render() {
       if (!view || disposed) return;
       const ctx = context();
-      if (!ctx || contextKey(ctx) !== key) { sync(); return; }
+      if (!ctx || contextKey(ctx) !== key || (ctx.playerName || '') !== scopePlayer) { sync(); return; }
       let model;
-      try { model = project(cache, ctx); }
+      try { model = project(cache, {...ctx,panelExpanded:prefs.expanded}); }
       catch (error) {
         model = {gameId:ctx.gameId, sessionId:null, handCards:[], recentPlays:[], captureIssues:[],
           statusTone:'error', statusLabel:l10n('無法整理已存記錄'), statusDetail:String(error?.message || error)};
@@ -113,6 +113,7 @@
       const patch = Object.fromEntries(Object.keys(desired).filter(name => JSON.stringify(previous[name]) !== JSON.stringify(desired[name])).map(name => [name,desired[name]]));
       pendingPreferences += 1;
       view.setPreferences(desired);
+      render();
       preferenceWrites = preferenceWrites.catch(() => {}).then(async () => {
         try {
           const stored = await storage.local.get(PREFERENCE_KEY);

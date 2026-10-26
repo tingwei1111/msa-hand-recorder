@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="ui-theme.css">
     <script src="storage-health.js" defer></script>
     <script src="recorder-core.js" defer></script>
+    <script src="export-i18n.js" defer></script>
     <script src="battle-log-core.js" defer></script>
     <script src="annotations-core.js" defer></script>
     <script src="review-workspace.js" defer></script>
@@ -16,7 +17,7 @@
   <body data-view="popup">
     <header class="masthead">
       <div>
-        <p class="eyebrow">MSA <span class="brand-divider">/</span> RECORDER <span class="version-tag">0.10</span></p>
+        <p class="eyebrow">MSA <span class="brand-divider">/</span> RECORDER <span class="version-tag">0.11</span></p>
         <h1 data-i18n="我的對局記錄">我的對局記錄</h1>
         <p class="subtitle" data-i18n="留住每一回合，讀懂下一步。">留住每一回合，讀懂下一步。</p>
       </div>
@@ -148,7 +149,7 @@
         <div class="row"><span class="micro" data-i18n="本機儲存空間">本機儲存空間</span><strong id="storage-label" data-i18n="讀取中…">讀取中…</strong></div>
         <progress id="storage-meter" max="100" value="0" aria-label="已用儲存容量" data-i18n-aria-label="已用儲存容量"></progress>
         <p id="storage-note" class="micro"></p>
-        <details class="rescue-details"><summary data-i18n="儲存遇到問題？">儲存遇到問題？</summary><p class="micro" data-i18n="切到原 MSA 分頁，可下載尚未存妥或被隔離的原始觀察。請保持該分頁開啟。">切到原 MSA 分頁，可下載尚未存妥或被隔離的原始觀察。請保持該分頁開啟。</p><button id="download-rescue" class="button" type="button" data-i18n="下載未存資料救援 JSON">下載未存資料救援 JSON</button></details>
+        <details class="rescue-details"><summary data-i18n="儲存遇到問題？">儲存遇到問題？</summary><p class="micro" data-i18n="可下載分頁暫存與本機復原原件；已保存至復原區的資料，重整後仍可取回。">可下載分頁暫存與本機復原原件；已保存至復原區的資料，重整後仍可取回。</p><button id="download-rescue" class="button" type="button" data-i18n="下載未存資料救援 JSON">下載未存資料救援 JSON</button></details>
       </section>
       <footer><span data-i18n="只讀可見頁面">只讀可見頁面</span> <span aria-hidden="true">·</span> <span data-i18n="首次使用，請核對實際手牌張數。">首次使用，請核對實際手牌張數。</span></footer>
     </main>

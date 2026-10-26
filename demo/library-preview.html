@@ -2,33 +2,86 @@
     <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title data-i18n="本機資料庫 · MSA 記錄器">本機資料庫 · MSA 記錄器</title>
-  <link rel="stylesheet" href="../extension/library.css">
-  <link rel="stylesheet" href="../extension/ui-theme.css">
-  <script src="../extension/storage-health.js" defer></script>
-  <script src="../extension/library-core.js" defer></script>
-    <script src="../extension/recorder-core.js" defer></script>
-    <script src="../extension/battle-log-core.js" defer></script>
-    <script src="../extension/annotations-core.js" defer></script>
-    <script src="../extension/diagnostics-core.js" defer></script>
-    <script src="../extension/library-store.js" defer></script>
-    <script src="workspace-mock.js" defer></script>
-    <script src="popup-mock.js" defer></script>
-    <script src="../extension/i18n-data.js" defer></script>
-    <script src="../extension/i18n.js" defer></script>
-  <script src="../extension/library.js" defer></script>
+  <link rel="stylesheet" href="../extension/ui-theme.css?v=3161b892f9c4">
+  <link rel="stylesheet" href="../extension/library.css?v=5bb2ed829628">
+  <script src="../extension/storage-health.js?v=ddd300c0c8a5" defer></script>
+  <script src="../extension/library-core.js?v=067d368f2f2e" defer></script>
+  <script src="../extension/library-tabs.js?v=89a9431ac0a1" defer></script>
+    <script src="../extension/recorder-core.js?v=c86c9e79b208" defer></script>
+    <script src="../extension/export-i18n.js?v=96cdac8e4f43" defer></script>
+    <script src="../extension/battle-log-core.js?v=68ffcf03874b" defer></script>
+    <script src="../extension/annotations-core.js?v=27f3b06fc9ba" defer></script>
+    <script src="../extension/diagnostics-core.js?v=94d5fbcf1d4c" defer></script>
+    <script src="../extension/library-store.js?v=a76011b53e82" defer></script>
+    <script src="../extension/recovery-journal.js?v=ef954ec85ab0" defer></script>
+    <script src="workspace-mock.js?v=990d4f47e847" defer></script>
+    <script src="popup-mock.js?v=197e052e7b7b" defer></script>
+    <script src="../extension/i18n-data.js?v=f8f63721340a" defer></script>
+    <script src="../extension/i18n.js?v=0632b1f66b4c" defer></script>
+  <script src="../extension/library.js?v=e2c078eb9533" defer></script>
 </head>
 <body data-view="library">
-    <div style="padding:7px 12px;text-align:center;background:#1a293b;color:#b9c9df;font:11px/1.5 system-ui,sans-serif">介面預覽 · 合成資料，未連線至 MSA；查卡只查詢官方公開卡片來源</div>
+    <div style="padding:7px 12px;text-align:center;background:#222;color:#aaa;font:11px/1.5 system-ui,sans-serif">介面預覽 · 合成資料，未連線至 MSA；查卡只查詢官方公開卡片來源</div>
   <header class="page-header">
-    <div><p class="eyebrow">MSA <span class="brand-divider">/</span> PERSONAL WORKSPACE <span class="version-tag">0.10</span></p><h1><span data-i18n="你的對局，">你的對局，</span><span class="accent-text" data-i18n="持續累積。">持續累積。</span></h1><p data-i18n="管理牌組、整理戰績，把每一次練習留下來。">管理牌組、整理戰績，把每一次練習留下來。</p></div>
+    <div><p class="eyebrow">MSA <span class="brand-divider">/</span> LOCAL WORKSPACE <span class="version-tag">0.11</span></p><h1 data-i18n="資料與牌組">資料與牌組</h1><p data-i18n="管理牌組、整理戰績，把每一次練習留下來。">管理牌組、整理戰績，把每一次練習留下來。</p></div>
     <div class="header-tools"><label class="language-control"><span data-i18n="介面語言">介面語言</span><select data-language-select="" aria-label="介面語言" data-i18n-aria-label="介面語言"><option value="zh-TW" translate="no">繁體中文</option><option value="zh-CN" translate="no">简体中文</option><option value="en" translate="no">English</option></select></label><button id="backup" class="primary" type="button" data-i18n="下載完整備份">下載完整備份</button></div>
   </header>
   <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
-  <nav class="section-nav" aria-label="管理頁章節" data-i18n-aria-label="管理頁章節"><a href="#restore">01 <span data-i18n="備份還原">備份還原</span></a><a href="#decks">02 <span data-i18n="牌組版本">牌組版本</span></a><a href="#matches">03 <span data-i18n="對局綁定">對局綁定</span></a><a href="#statistics">04 <span data-i18n="個人戰績">個人戰績</span></a><button id="refresh-library" class="secondary" type="button" data-i18n="更新資料">更新資料</button></nav>
+  <div class="workspace-toolbar">
+    <nav class="workspace-tabs" role="tablist" aria-label="管理頁章節" data-i18n-aria-label="管理頁章節" aria-orientation="horizontal">
+      <button id="tab-matches" class="workspace-tab" type="button" role="tab" aria-controls="matches" aria-selected="true" tabindex="0"><span class="tab-index" aria-hidden="true">01</span><span data-i18n="對局">對局</span></button>
+      <button id="tab-decks" class="workspace-tab" type="button" role="tab" aria-controls="decks" aria-selected="false" tabindex="-1"><span class="tab-index" aria-hidden="true">02</span><span data-i18n="牌組">牌組</span></button>
+      <button id="tab-statistics" class="workspace-tab" type="button" role="tab" aria-controls="statistics" aria-selected="false" tabindex="-1"><span class="tab-index" aria-hidden="true">03</span><span data-i18n="戰績">戰績</span></button>
+      <button id="tab-restore" class="workspace-tab" type="button" role="tab" aria-controls="restore" aria-selected="false" tabindex="-1"><span class="tab-index" aria-hidden="true">04</span><span data-i18n="備份">備份</span></button>
+    </nav>
+    <button id="refresh-library" class="secondary refresh-library" type="button" data-i18n="更新資料">更新資料</button>
+  </div>
+  <p id="workspace-count" class="workspace-count" role="status" data-i18n="讀取本機資料中…">讀取本機資料中…</p>
   <main>
     <section id="storage-health" class="storage-health" aria-label="本機儲存容量" data-level="normal" data-i18n-aria-label="本機儲存容量"><div class="row"><div><p class="eyebrow">LOCAL STORAGE</p><strong data-i18n="你的資料，保存在本機。">你的資料，保存在本機。</strong></div><strong id="storage-label" data-i18n="讀取中…">讀取中…</strong></div><progress id="storage-meter" max="100" value="0" aria-label="已用儲存容量" data-i18n-aria-label="已用儲存容量"></progress><p id="storage-note" class="hint"></p></section>
-    <section id="restore" class="panel">
-      <div class="section-heading"><div><p class="eyebrow">01 / BACKUP &amp; RESTORE</p><h2 data-i18n="備份與匯入">備份與匯入</h2></div><p id="workspace-count" class="muted" data-i18n="讀取本機資料中…">讀取本機資料中…</p></div>
+    <section id="matches" class="panel workspace-panel" role="tabpanel" aria-labelledby="tab-matches" tabindex="0">
+      <div class="section-heading"><div><p class="eyebrow">01 / MATCH RECORD</p><h2 data-i18n="替對局補上你的確認">替對局補上你的確認</h2></div><span class="badge" data-i18n="資料來源：人工確認">資料來源：人工確認</span></div>
+      <p id="draft-status" class="draft-status" role="status" hidden data-i18n="編輯中的草稿已保留；按「保存對局確認」才會正式儲存。">編輯中的草稿已保留；按「保存對局確認」才會正式儲存。</p>
+      <p class="panel-lead" data-i18n="選擇對局，確認牌組、先後手與結果。未確認的結果不列入勝率。">選擇對局，確認牌組、先後手與結果。未確認的結果不列入勝率。</p>
+      <details class="help-details"><summary data-i18n="對局確認說明">對局確認說明</summary><p data-i18n="多段記錄仍是同一場對局。以「對局 ID＋確認的玩家名稱」計算一次，結束標記不會自動變成勝負結果。">多段記錄仍是同一場對局。以「對局 ID＋確認的玩家名稱」計算一次，結束標記不會自動變成勝負結果。</p><p class="hint" data-i18n="儲存時會凍結整份版本，之後修改牌組不會改寫這場的牌表。手牌片段不會被當作完整牌表或精確牌庫。">儲存時會凍結整份版本，之後修改牌組不會改寫這場的牌表。手牌片段不會被當作完整牌表或精確牌庫。</p></details>
+      <div id="match-empty" class="empty-state" hidden><span class="empty-symbol" aria-hidden="true">◌</span><h3 data-i18n="還沒有對局記錄">還沒有對局記錄</h3><p data-i18n="開始記錄一場對局，或從備份匯入。">開始記錄一場對局，或從備份匯入。</p><a class="inline-action" href="#restore" data-i18n="前往備份匯入">前往備份匯入</a></div>
+      <form id="match-form">
+        <label><span data-i18n="本機對局記錄">本機對局記錄</span><select id="match-session" required=""></select></label>
+        <p id="match-source" class="hint"></p>
+        <div class="form-grid identity-grid"><div><label><span data-i18n="你的玩家名稱">你的玩家名稱</span><input id="match-player" maxlength="200" autocomplete="off" required=""></label>
+        <label class="check-row"><input id="identity-confirmed" type="checkbox" required=""><span data-i18n="我確認這是本人在這場對局使用的名稱。">我確認這是本人在這場對局使用的名稱。</span></label></div><div>
+        <label><span data-i18n="使用的牌組版本">使用的牌組版本</span><select id="match-deck"><option value="" data-i18n="尚未綁定牌組">尚未綁定牌組</option></select></label>
+        <p class="field-note" data-i18n="保存後會保留這場使用的牌組版本。">保存後會保留這場使用的牌組版本。</p></div></div>
+        <div class="form-grid"><label><span data-i18n="先後手">先後手</span><select id="match-order"><option value="unknown" data-i18n="尚未確認">尚未確認</option><option value="first" data-i18n="先手（人工確認）">先手（人工確認）</option><option value="second" data-i18n="後手（人工確認）">後手（人工確認）</option></select></label><label><span data-i18n="本人結果">本人結果</span><select id="match-result"><option value="unknown" data-i18n="尚未確認">尚未確認</option><option value="win" data-i18n="勝（含對手投降）">勝（含對手投降）</option><option value="loss" data-i18n="負">負</option><option value="draw" data-i18n="和局">和局</option><option value="concede" data-i18n="本人投降（計負）">本人投降（計負）</option></select></label></div>
+        <label class="check-row"><input id="result-confirmed" type="checkbox"><span data-i18n="我確認以上結果；未確認結果不列入勝率。">我確認以上結果；未確認結果不列入勝率。</span></label>
+        <div class="actions"><button id="save-match" class="primary" type="submit" data-i18n="保存對局確認">保存對局確認</button></div>
+      </form>
+      <p id="match-saved" class="hint"></p>
+    </section>
+    <section id="decks" class="panel workspace-panel" role="tabpanel" aria-labelledby="tab-decks" tabindex="0" hidden>
+      <div class="section-heading"><div><p class="eyebrow">02 / DECK VERSIONS</p><h2 data-i18n="保存每一次改牌">保存每一次改牌</h2></div><span class="badge" data-i18n="版本內容不可覆寫">版本內容不可覆寫</span></div>
+      <details class="help-details"><summary data-i18n="牌組格式與版本說明">牌組格式與版本說明</summary><p><span data-i18n="每次修改另存版本。這裡檢查格式、主牌 50 張與同卡號上限 4 張；">每次修改另存版本。這裡檢查格式、主牌 50 張與同卡號上限 4 張；</span><strong data-i18n="不代表已驗證當期賽制合法性">不代表已驗證當期賽制合法性</strong><span data-i18n="，也不根據卡號猜測卡片類型。">，也不根據卡號猜測卡片類型。</span></p></details>
+      <p class="panel-lead" data-i18n="貼上牌表並另存版本。只檢查格式與張數，不代表賽制合法性。">貼上牌表並另存版本。只檢查格式與張數，不代表賽制合法性。</p>
+      <form id="deck-form">
+        <div class="form-grid"><label><span data-i18n="從既有版本開始">從既有版本開始</span><select id="deck-version"><option value="" data-i18n="建立新牌組">建立新牌組</option></select></label><label><span data-i18n="牌組名稱">牌組名稱</span><input id="deck-name" maxlength="120" required="" autocomplete="off" placeholder="例如：週末練習牌組" data-i18n-placeholder="例如：週末練習牌組"></label></div>
+        <label><span data-i18n="主牌組（50 張）">主牌組（50 張）</span><textarea id="deck-main" rows="10" spellcheck="false" required="" placeholder="4xGD01-001
+4 GD01-002
+GD01-003x4"></textarea></label>
+        <details class="zone-details"><summary data-i18n="資源與 Token（選填）">資源與 Token（選填）</summary><div class="form-grid"><label><span data-i18n="資源（另列，不計入主牌 50 張）">資源（另列，不計入主牌 50 張）</span><textarea id="deck-resources" rows="4" spellcheck="false" placeholder="10xR-001"></textarea></label><label><span data-i18n="Token（另列，不計入主牌 50 張）">Token（另列，不計入主牌 50 張）</span><textarea id="deck-tokens" rows="4" spellcheck="false" placeholder="2xT-001"></textarea></label></div></details>
+        <p class="hint" data-i18n="支援「數量x卡號」「數量 卡號」「卡號x數量」；同一卡號會合併。資源與 Token 只做格式及數量展示，不計入主牌；區域由你指定，卡片存在與賽制合法性尚未驗證。">支援「數量x卡號」「數量 卡號」「卡號x數量」；同一卡號會合併。資源與 Token 只做格式及數量展示，不計入主牌；區域由你指定，卡片存在與賽制合法性尚未驗證。</p>
+        <p id="deck-validation" class="validation" aria-live="polite"></p>
+        <div class="actions"><button id="save-deck" class="primary" type="submit" data-i18n="保存為牌組版本">保存為牌組版本</button><button id="new-deck" class="secondary" type="button" data-i18n="清空並建立新牌組">清空並建立新牌組</button></div>
+      </form>
+      <p id="deck-version-info" class="hint"></p>
+    </section>
+    <section id="statistics" class="panel workspace-panel" role="tabpanel" aria-labelledby="tab-statistics" tabindex="0" hidden>
+      <div class="section-heading"><div><p class="eyebrow">03 / PERSONAL RECORD</p><h2 data-i18n="看得見樣本數的戰績">看得見樣本數的戰績</h2></div><span class="badge" data-i18n="只計人工確認結果">只計人工確認結果</span></div>
+      <div class="form-grid"><label><span data-i18n="牌組版本">牌組版本</span><select id="stats-deck"><option value="" data-i18n="全部版本">全部版本</option></select></label><label><span data-i18n="先後手">先後手</span><select id="stats-order"><option value="" data-i18n="全部">全部</option><option value="first" data-i18n="先手">先手</option><option value="second" data-i18n="後手">後手</option><option value="unknown" data-i18n="先後手未確認">先後手未確認</option></select></label></div>
+      <div id="stats-summary" class="stats-grid"></div><p class="field-note" data-i18n="勝率只計人工確認場次；和局計入分母。">勝率只計人工確認場次；和局計入分母。</p><details class="help-details"><summary data-i18n="計算方式與資料來源">計算方式與資料來源</summary><p id="stats-denominator" class="hint"></p></details>
+      <div class="table-wrap"><table><caption class="sr-only" data-i18n="符合條件的人工戰績">符合條件的人工戰績</caption><thead><tr><th data-i18n="對局／玩家">對局／玩家</th><th data-i18n="牌組版本">牌組版本</th><th data-i18n="先後手">先後手</th><th data-i18n="確認結果">確認結果</th></tr></thead><tbody id="stats-rows"></tbody></table></div>
+    </section>
+    <section id="restore" class="panel workspace-panel" role="tabpanel" aria-labelledby="tab-restore" tabindex="0" hidden>
+      <div class="section-heading"><div><p class="eyebrow">04 / BACKUP &amp; RESTORE</p><h2 data-i18n="備份與匯入">備份與匯入</h2></div><span class="badge" data-i18n="僅存本機">僅存本機</span></div>
       <p data-i18n="完整備份包含對局、註記、牌組版本、人工戰績與匯入原件。錄製設定與小窗位置不會被匯入改動。">完整備份包含對局、註記、牌組版本、人工戰績與匯入原件。錄製設定與小窗位置不會被匯入改動。</p>
       <label class="file-label" for="import-file" data-i18n="選擇 JSON 備份或本工具匯出的獨立 HTML">選擇 JSON 備份或本工具匯出的獨立 HTML</label>
       <input id="import-file" type="file" accept=".json,.html,.htm,application/json,text/html">
@@ -40,44 +93,6 @@
         <div class="actions"><button id="confirm-import" class="primary" type="button" disabled data-i18n="確認匯入這些資料">確認匯入這些資料</button><button id="cancel-import" class="secondary" type="button" data-i18n="取消">取消</button></div>
       </div>
       <details class="archive-details"><summary data-i18n="匯入原件與衝突副本">匯入原件與衝突副本</summary><div id="archives" class="archive-list"></div></details>
-    </section>
-    <section id="decks" class="panel">
-      <div class="section-heading"><div><p class="eyebrow">02 / DECK VERSIONS</p><h2 data-i18n="保存每一次改牌">保存每一次改牌</h2></div><span class="badge" data-i18n="版本內容不可覆寫">版本內容不可覆寫</span></div>
-      <p><span data-i18n="每次修改另存版本。這裡檢查格式、主牌 50 張與同卡號上限 4 張；">每次修改另存版本。這裡檢查格式、主牌 50 張與同卡號上限 4 張；</span><strong data-i18n="不代表已驗證當期賽制合法性">不代表已驗證當期賽制合法性</strong><span data-i18n="，也不根據卡號猜測卡片類型。">，也不根據卡號猜測卡片類型。</span></p>
-      <form id="deck-form">
-        <div class="form-grid"><label><span data-i18n="從既有版本開始">從既有版本開始</span><select id="deck-version"><option value="" data-i18n="建立新牌組">建立新牌組</option></select></label><label><span data-i18n="牌組名稱">牌組名稱</span><input id="deck-name" maxlength="120" required="" autocomplete="off" placeholder="例如：週末練習牌組" data-i18n-placeholder="例如：週末練習牌組"></label></div>
-        <label><span data-i18n="主牌組（50 張）">主牌組（50 張）</span><textarea id="deck-main" rows="10" spellcheck="false" required="" placeholder="4xGD01-001
-4 GD01-002
-GD01-003x4"></textarea></label>
-        <div class="form-grid"><label><span data-i18n="資源（另列，不計入主牌 50 張）">資源（另列，不計入主牌 50 張）</span><textarea id="deck-resources" rows="4" spellcheck="false" placeholder="10xR-001"></textarea></label><label><span data-i18n="Token（另列，不計入主牌 50 張）">Token（另列，不計入主牌 50 張）</span><textarea id="deck-tokens" rows="4" spellcheck="false" placeholder="2xT-001"></textarea></label></div>
-        <p class="hint" data-i18n="支援「數量x卡號」「數量 卡號」「卡號x數量」；同一卡號會合併。資源與 Token 只做格式及數量展示，不計入主牌；區域由你指定，卡片存在與賽制合法性尚未驗證。">支援「數量x卡號」「數量 卡號」「卡號x數量」；同一卡號會合併。資源與 Token 只做格式及數量展示，不計入主牌；區域由你指定，卡片存在與賽制合法性尚未驗證。</p>
-        <p id="deck-validation" class="validation" aria-live="polite"></p>
-        <div class="actions"><button id="save-deck" class="primary" type="submit" data-i18n="保存為牌組版本">保存為牌組版本</button><button id="new-deck" class="secondary" type="button" data-i18n="清空並建立新牌組">清空並建立新牌組</button></div>
-      </form>
-      <p id="deck-version-info" class="hint"></p>
-    </section>
-    <section id="matches" class="panel">
-      <div class="section-heading"><div><p class="eyebrow">03 / MATCH RECORD</p><h2 data-i18n="替對局補上你的確認">替對局補上你的確認</h2></div><span class="badge" data-i18n="資料來源：人工確認">資料來源：人工確認</span></div>
-      <p id="draft-status" class="draft-status" role="status" hidden data-i18n="編輯中的草稿已保留；按「保存對局確認」才會正式儲存。">編輯中的草稿已保留；按「保存對局確認」才會正式儲存。</p>
-      <p data-i18n="多段記錄仍是同一場對局。以「對局 ID＋確認的玩家名稱」計算一次，結束標記不會自動變成勝負結果。">多段記錄仍是同一場對局。以「對局 ID＋確認的玩家名稱」計算一次，結束標記不會自動變成勝負結果。</p>
-      <form id="match-form">
-        <label><span data-i18n="本機對局記錄">本機對局記錄</span><select id="match-session" required=""></select></label>
-        <p id="match-source" class="hint"></p>
-        <label><span data-i18n="你的玩家名稱">你的玩家名稱</span><input id="match-player" maxlength="200" autocomplete="off" required=""></label>
-        <label class="check-row"><input id="identity-confirmed" type="checkbox" required=""><span data-i18n="我確認這是本人在這場對局使用的名稱。">我確認這是本人在這場對局使用的名稱。</span></label>
-        <label><span data-i18n="使用的牌組版本">使用的牌組版本</span><select id="match-deck"><option value="" data-i18n="尚未綁定牌組">尚未綁定牌組</option></select></label>
-        <p class="hint" data-i18n="儲存時會凍結整份版本，之後修改牌組不會改寫這場的牌表。手牌片段不會被當作完整牌表或精確牌庫。">儲存時會凍結整份版本，之後修改牌組不會改寫這場的牌表。手牌片段不會被當作完整牌表或精確牌庫。</p>
-        <div class="form-grid"><label><span data-i18n="先後手">先後手</span><select id="match-order"><option value="unknown" data-i18n="尚未確認">尚未確認</option><option value="first" data-i18n="先手（人工確認）">先手（人工確認）</option><option value="second" data-i18n="後手（人工確認）">後手（人工確認）</option></select></label><label><span data-i18n="本人結果">本人結果</span><select id="match-result"><option value="unknown" data-i18n="尚未確認">尚未確認</option><option value="win" data-i18n="勝（含對手投降）">勝（含對手投降）</option><option value="loss" data-i18n="負">負</option><option value="draw" data-i18n="和局">和局</option><option value="concede" data-i18n="本人投降（計負）">本人投降（計負）</option></select></label></div>
-        <label class="check-row"><input id="result-confirmed" type="checkbox"><span data-i18n="我確認以上結果；未確認結果不列入勝率。">我確認以上結果；未確認結果不列入勝率。</span></label>
-        <div class="actions"><button id="save-match" class="primary" type="submit" data-i18n="保存對局確認">保存對局確認</button></div>
-      </form>
-      <p id="match-saved" class="hint"></p>
-    </section>
-    <section id="statistics" class="panel">
-      <div class="section-heading"><div><p class="eyebrow">04 / PERSONAL RECORD</p><h2 data-i18n="看得見樣本數的戰績">看得見樣本數的戰績</h2></div><span class="badge" data-i18n="只計人工確認結果">只計人工確認結果</span></div>
-      <div class="form-grid"><label><span data-i18n="牌組版本">牌組版本</span><select id="stats-deck"><option value="" data-i18n="全部版本">全部版本</option></select></label><label><span data-i18n="先後手">先後手</span><select id="stats-order"><option value="" data-i18n="全部">全部</option><option value="first" data-i18n="先手">先手</option><option value="second" data-i18n="後手">後手</option><option value="unknown" data-i18n="先後手未確認">先後手未確認</option></select></label></div>
-      <div id="stats-summary" class="stats-grid"></div><p id="stats-denominator" class="hint"></p>
-      <div class="table-wrap"><table><caption class="sr-only" data-i18n="符合條件的人工戰績">符合條件的人工戰績</caption><thead><tr><th data-i18n="對局／玩家">對局／玩家</th><th data-i18n="牌組版本">牌組版本</th><th data-i18n="先後手">先後手</th><th data-i18n="確認結果">確認結果</th></tr></thead><tbody id="stats-rows"></tbody></table></div>
     </section>
   </main>
   <footer data-i18n="僅保存本機資料；移除擴充功能或清除瀏覽器資料前，請先下載完整備份。">僅保存本機資料；移除擴充功能或清除瀏覽器資料前，請先下載完整備份。</footer>

@@ -25,3 +25,17 @@ test('buffer overflow is explicit and suspended contexts never send queued old s
  queue.suspend('navigation');hold.resolve();await new Promise(setImmediate);assert.deepEqual(seen,[1]);assert.equal((await queue.flush()).ok,false);assert.equal(queue.state().pendingCount,1);
  const fresh=createWriteQueue({write:async p=>{seen.push(p.id);return {ok:true};}});fresh.enqueue({id:4});await fresh.flush();assert.deepEqual(seen,[1,4]);
 });
+test('batch flush awaits durable staging, bounds each write and preserves every observation',async()=>{
+ const hold=deferred(),batches=[];const queue=createWriteQueue({batchDelayMs:1000,maxBatch:3,persist:async()=>{await hold.promise;return {durable:true};},
+  writeBatch:async items=>{batches.push(items.map(item=>item.sequence));return {results:items.map(()=>({ok:true}))};}});
+ for(let sequence=1;sequence<=8;sequence++)queue.enqueue({sequence});
+ const flush=queue.flush();await new Promise(setImmediate);assert.equal(batches.length,0);assert.equal(queue.state().recovery.pendingCount,8);
+ hold.resolve();assert.equal((await flush).ok,true);assert.deepEqual(batches,[[1,2,3],[4,5,6],[7,8]]);
+ assert.equal(queue.state().recovery.durableCount,0);assert.equal(queue.rescue().pending.length,0);
+});
+test('suspending while staging preserves its durable original but never writes into a changed context',async()=>{
+ const hold=deferred();let calls=0;const queue=createWriteQueue({persist:()=>hold.promise,write:async()=>{calls++;return {ok:true};}});
+ queue.enqueue({sequence:1});await new Promise(setImmediate);queue.suspend('context-changed');hold.resolve({durable:true});await new Promise(setImmediate);
+ assert.equal(calls,0);assert.equal(queue.state().recovery.durableCount,1);assert.equal(queue.rescue().pending.length,1);
+ assert.equal((await queue.flush()).ok,false);
+});

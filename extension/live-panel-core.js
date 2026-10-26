@@ -15,6 +15,53 @@
   const name = value => text(value).trim();
   const copy = value => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
   const count = value => Number.isSafeInteger(value) && value >= 0 ? value : null;
+  const detailKey = value => text(value).replace(/\s+/g, '').replace(/[。.!！]+$/, '');
+  const statusPart = (code, source, ...params) => ({code, source, params});
+  const renderPart = part => typeof globalThis.MSAI18n?.status === 'function' ?
+    globalThis.MSAI18n.status({messageParts:[part]}) : l10n(part.source, ...(Array.isArray(part.params) ? part.params : []));
+  function recoveryState(context) {
+    const recovery = context.recovery || {};
+    return {durable:count(recovery.durableCount) || 0, pending:count(recovery.pendingCount) || 0,
+      unprotected:count(recovery.unprotectedCount) || 0, error:text(recovery.error).trim()};
+  }
+  function recoveryParts(context) {
+    const recovery = recoveryState(context), parts = [], quarantined = count(context.quarantinedCount) || 0;
+    if (quarantined) parts.push(statusPart('quarantined','{0} 筆格式異常已隔離；請下載救援備份，有效觀察繼續保存',quarantined));
+    if (recovery.durable) parts.push(statusPart('recovery-durable','救援原件已持久化 {0} 筆',recovery.durable));
+    if (recovery.pending) parts.push(statusPart('recovery-pending','救援暫存確認中 {0} 筆',recovery.pending));
+    if (recovery.unprotected || recovery.error) parts.push(statusPart('recovery-unconfirmed',recovery.error === 'recovery-journal-full' ?
+      '救援暫存已滿，下載不會清除；一般記錄仍會嘗試保存，請保留原分頁。' : '救援暫存未確認持久化；請保留原分頁。'));
+    return parts;
+  }
+  function appendStatusDetails(details, context) {
+    const add = value => {
+      const key = detailKey(value);
+      if (key && !details.some(existing => detailKey(existing).includes(key))) details.push(value);
+    };
+    const counters = new Set(['saved-hand','saved-log','pending']);
+    const addPart = part => {
+      if (counters.has(part.code) || (part.code === 'write-error' && text(context.writeError).trim())) return;
+      if ((context.recovery && text(part.code).startsWith('recovery-')) ||
+          (context.quarantinedCount !== undefined && part.code === 'quarantined')) return;
+      add(renderPart(part));
+    };
+    for (const [parts, legacy] of [[context.captureNoteParts,context.captureNote], [context.statusMessageParts,context.statusMessage]]) {
+      const structured = Array.isArray(parts) ? parts.filter(part => part && typeof part.source === 'string') : [];
+      if (structured.length) { structured.forEach(addPart); continue; }
+      // Only old, unstructured badges are split. A structured parameter may
+      // contain separators or UI-like words and must remain literal.
+      for (const fragment of text(legacy).split(/[·•]/).map(value => value.trim()).filter(Boolean)) {
+        if (/^已保存\s*\d+\s*[筆笔](?:手牌|快照)?[。.!！]?$/.test(fragment) ||
+            /^Log\s*\d+\s*[筆笔][。.!！]?$/i.test(fragment) || /^待存\s*\d+\s*[筆笔][。.!！]?$/.test(fragment) ||
+            /^Saved\s+\d+\s+hands[.!]?$/i.test(fragment) || /^\d+\s+pending[.!]?$/i.test(fragment)) continue;
+        if (text(context.writeError).trim() && /^(?:儲存失敗|保存失败|Save failed)\s*[:：]/i.test(fragment)) continue;
+        add(globalThis.MSAI18n?.message(fragment) || fragment);
+      }
+    }
+    // The state is authoritative even when its latest published badge predates
+    // an asynchronous journal acknowledgement or error.
+    recoveryParts(context).forEach(part => add(renderPart(part)));
+  }
   const qualityLabels = {complete:'辨識完整', partial:'部分辨識', unavailable:'手牌未知'};
   const eventSignature = event => JSON.stringify([
     text(event.rawText).replace(/\s+/g, ' ').trim(), name(event.actor), event.cards || []
@@ -161,12 +208,12 @@
       else if (sources.length > 1 && typeof battle?.combineSessions === 'function') {
         merged = battle.combineSessions(sources.map(publicOnly));
       } else if (sources.length > 1) {
-        mergeProblem = l10n('公開紀錄合併模組未載入，僅顯示目前記錄段。');
+        mergeProblem = '公開紀錄合併模組未載入，僅顯示目前記錄段。';
       }
-    } catch (_) { mergeProblem = l10n('部分公開紀錄無法合併，僅顯示目前記錄段。'); }
+    } catch (_) { mergeProblem = '部分公開紀錄無法合併，僅顯示目前記錄段。'; }
     if (!merged && current && sources.includes(current)) merged = publicOnly(current);
     try { if (merged && typeof battle?.buildTimeline === 'function') timeline = battle.buildTimeline(merged); }
-    catch (_) { mergeProblem = l10n('公開紀錄摘要無法確認，請開啟回顧頁檢查原文。'); }
+    catch (_) { mergeProblem = '公開紀錄摘要無法確認，請開啟回顧頁檢查原文。'; }
     events = eventsOf(merged);
     originals = originalEvents(events, sources);
     if(cache){cache.publicKey=publicKey;cache.evidence={merged,mergeProblem,timeline,events,originals};}
@@ -205,7 +252,7 @@
       ...hand, snapshotCount:handSession?.snapshots.length || 0,
       publicEventCount:events.length, publicPlayCount:plays.length, recentPlays, coverageLabel, coverageTone,
       captureIssues, handDelta,healthAlerts:copy(Array.isArray(context.healthAlerts)?context.healthAlerts:[]),
-      endObserved:Boolean(context.endObserved),statusLabel:l10n('等待已存資料'), statusTone:'neutral', statusDetail:''};
+      endObserved:Boolean(context.endObserved),statusLabel:l10n('等待已存資料'), statusTone:'neutral', statusDetail:'',statusDetailLocalized:true};
     if (tracker?.project) {
       try { model.deckTracker = tracker.project({values,context,handModel:hand,events,players:[...knownPlayers],coverage}); }
       catch (_) {
@@ -217,10 +264,14 @@
       }
     }
     const pending = count(context.pendingCount) || 0, writeError = text(context.writeError).trim();
+    const recovery = recoveryState(context), recoveryUncertain = recovery.pending || recovery.unprotected || recovery.error;
     const details = [];
     if (writeError) {
       model.statusLabel = l10n('儲存需要處理'); model.statusTone = 'error';
-      details.push(l10n("儲存失敗：{0}。下方僅顯示已存資料。", globalThis.MSAI18n?.message(writeError)||writeError));
+      details.push(l10n("儲存失敗：{0}。下方僅顯示已存資料。", writeError));
+      if (context.enabled === false) details.push(l10n('新記錄已暫停。'));
+    } else if (recoveryUncertain || context.quarantinedCount > 0) {
+      model.statusLabel = l10n('紀錄涵蓋待確認'); model.statusTone = 'warning';
       if (context.enabled === false) details.push(l10n('新記錄已暫停。'));
     } else if (context.enabled === false) {
       model.statusLabel = l10n('記錄已暫停'); details.push(l10n('既有資料仍保留；暫停期間不新增觀察。'));
@@ -244,26 +295,58 @@
       model.statusLabel = l10n('已存公開 Log'); details.push(l10n('本段尚無已存手牌，公開 Log 不能補回過去手牌。'));
     } else details.push(l10n('尚未收到本場已儲存的資料。啟用開關不代表已記錄成功。'));
     if (pending && writeError) details.push(l10n("仍有 {0} 筆觀察待存。", pending));
-    if (mergeProblem) details.push(mergeProblem);
+    // Cached evidence outlives language changes; localize its authored source
+    // only when composing the current view, without reprocessing user data.
+    if (mergeProblem) details.push(l10n(mergeProblem));
     if (captureIssues.length) details.push(l10n("有 {0} 筆手牌擷取缺口；公開 Log 的完整性不能補回缺口。", captureIssues.length));
-    // The legacy badge repeats counts, errors and captureNote in one status
-    // string. Keep extra explanations, but do not repeat the panel's counters
-    // or an explanation already represented by a structured state above.
-    const detailKey = value => text(value).replace(/\s+/g, '').replace(/[。.!！]+$/, '');
-    for (const detail of [context.captureNote, context.statusMessage]) {
-      for (const fragment of text(detail).split(/[·•]/).map(value => value.trim()).filter(Boolean)) {
-        if (/^已保存\s*\d+\s*筆(?:手牌|快照)?[。.!！]?$/.test(fragment) ||
-            /^Log\s*\d+\s*筆[。.!！]?$/i.test(fragment) || /^待存\s*\d+\s*筆[。.!！]?$/.test(fragment)) continue;
-        const key = detailKey(fragment);
-        if (key && !details.some(existing => detailKey(existing).includes(key))) details.push(globalThis.MSAI18n?.message(fragment)||fragment);
-      }
-    }
+    appendStatusDetails(details,context);
     model.statusDetail = details.join(' ');
     return model;
   }
+  // Collapsed launchers need saved counts and health, not merged event history
+  // or a Wasm deck projection. Read only the current identity's saved segment.
+  function projectSummary(values, context = {}) {
+    context = context || {};
+    const gameId=text(context.gameId), playerName=name(context.playerName), id=`${gameId}.${text(context.runId)}`;
+    const stored=values?.[PREFIX+id];
+    const current=validSession(PREFIX+id,stored,gameId)?stored:null;
+    const mismatch=Boolean(playerName && current && name(current.playerName)!==playerName);
+    const own=playerName && !mismatch ? current : null;
+    const snapshotCount=own?.snapshots.length || 0, latest=own?.snapshots.at(-1);
+    const pending=count(context.pendingCount)||0, quarantined=count(context.quarantinedCount)||0;
+    const writeError=text(context.writeError).trim(), recovery=recoveryState(context);
+    const healthAlerts=copy(Array.isArray(context.healthAlerts)?context.healthAlerts:[]);
+    const captureIssues=[];
+    for(const [key,record] of Object.entries(values || {})) {
+      if(!validSession(key,record,gameId))continue;
+      if(playerName ? name(record.playerName)!==playerName && (name(record.playerName)||record.snapshots.length) : record!==current)continue;
+      for(const issue of Array.isArray(record.captureIssues)?record.captureIssues:[])captureIssues.push(copy(issue));
+    }
+    let statusLabel=l10n('等待已存資料'), statusTone='neutral';
+    if(writeError){statusLabel=l10n('儲存需要處理');statusTone='error';}
+    else if(quarantined || captureIssues.length || healthAlerts.length || recovery.pending || recovery.unprotected || recovery.error){
+      statusLabel=l10n('紀錄涵蓋待確認');statusTone=healthAlerts.some(alert=>alert?.level==='error')?'error':'warning';
+    }
+    else if(context.enabled===false)statusLabel=l10n('記錄已暫停');
+    else if(pending){statusLabel=l10n('等待儲存 {0} 筆',pending);statusTone='warning';}
+    else if(mismatch){statusLabel=l10n('玩家資料不符');statusTone='warning';}
+    else if(!playerName){statusLabel=l10n('玩家身分待確認');statusTone='warning';}
+    else if(snapshotCount && (!latest || typeof latest!=='object' || projectHand(latest,true,false).quality!=='complete')){statusLabel=l10n('已存手牌待核對');statusTone='warning';}
+    else if(latest && ['partial','unavailable'].includes(context.quality)){statusLabel=l10n('目前畫面待辨識');statusTone='warning';}
+    else if(latest){statusLabel=l10n('已有本段手牌觀察');statusTone='success';}
+    else if(!mismatch && current?.battleLog?.events?.length)statusLabel=l10n('已存公開 Log');
+    const details=[];
+    if(writeError)details.push(l10n('儲存失敗：{0}。下方僅顯示已存資料。',writeError));
+    appendStatusDetails(details,context);
+    return {summaryOnly:true,gameId,playerName,identityConfirmed:Boolean(playerName),
+      sessionId:current && !mismatch && (playerName || !current.snapshots.length)?id:null,
+      snapshotCount,healthAlerts,captureIssues,statusLabel,statusTone,
+      statusDetail:details.join(' '),statusDetailLocalized:true,
+      latestSnapshot:null,handCards:[],recentPlays:[],endObserved:Boolean(context.endObserved)};
+  }
   function createProjector(){
     const cache={};
-    return (values,context)=>project(values,context,cache);
+    return (values,context)=>context?.panelExpanded===false ? projectSummary(values,context) : project(values,context,cache);
   }
-  return Object.freeze({project,createProjector});
+  return Object.freeze({project,projectSummary,createProjector});
 });

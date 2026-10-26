@@ -1,6 +1,7 @@
 (async () => {
   'use strict';
   const l10n = (source, ...values) => globalThis.MSAI18n ? globalThis.MSAI18n.t(source, ...values) : String(source ?? '').replace(/\{(\d+)\}/g, (match, index) => index < values.length ? String(values[index] ?? '') : match);
+  const reasonText = result => result?.reasonParts?.length ? (globalThis.MSAI18n?.status({messageParts:result.reasonParts}) || result.reason || '') : (globalThis.MSAI18n?.message(result?.reason) || result?.reason || '');
   await globalThis.MSAI18n?.ready();
 
 
@@ -152,7 +153,7 @@
     $('status-dot').className = `status-dot${tone ? ' ' + tone : ''}`;
     $('status-details').classList.toggle('needs-attention', reportedError);
     $('status-message').textContent = status && typeof status.message === 'string'
-      ? (globalThis.MSAI18n?.message(status.message) || status.message)
+      ? (globalThis.MSAI18n?.status(status) || status.message)
       : l10n('尚未收到 MSA 分頁狀態。請在對局前重新整理 MSA 分頁。');
     if (!status) {
       $('status-time').textContent = '';
@@ -397,7 +398,7 @@
     try {
       const prepared = await prepareExport();
       await action(prepared.session);
-      const suffix = prepared.refresh?.refreshed ? (prepared.refresh.partial ? l10n("已更新 Log，但仍有待確認資料：{0}。", prepared.refresh.reason || l10n('請查看涵蓋狀態')) : l10n('已更新公開 Log。')) : l10n("本次未能更新 Log：{0}。", prepared.refresh?.reason || l10n('對局分頁未回應'));
+      const suffix = prepared.refresh?.refreshed ? (prepared.refresh.partial ? l10n("已更新 Log，但仍有待確認資料：{0}。", reasonText(prepared.refresh) || l10n('請查看涵蓋狀態')) : l10n('已更新公開 Log。')) : l10n("本次未能更新 Log：{0}。", reasonText(prepared.refresh) || l10n('對局分頁未回應'));
       showNotice(l10n("{0}：{1} 本段匯出已發起；整場相容段落請使用回顧頁匯出。", sessionLabel(prepared.session), suffix), !prepared.refresh?.refreshed || prepared.refresh?.partial);
     } catch (error) { reportError(l10n('無法完成匯出。'), error); }
     finally { await loadData(); setRecordBusy(false); }
@@ -437,9 +438,9 @@
     try{
       const result=await chrome.runtime.sendMessage({type:'MSA_GET_RESCUE'});
       if(!result?.ok)throw new Error(result?.error||l10n('救援備份未能完成。'));
-      if(!result.backup?.records?.length){showNotice(l10n('目前分頁沒有待存或隔離的觀察。'));return;}
+      if(!result.backup?.records?.length){showNotice(l10n('目前沒有可下載的待存、隔離或本機復原原件。'));return;}
       downloadFile(JSON.stringify(result.backup,null,2),'json','application/json;charset=utf-8',{gameId:'unsaved-rescue'});
-      showNotice(l10n('救援 JSON 已開始下載；請保留原 MSA 分頁直到確認檔案。此檔包含未確認存入的原始觀察。'));
+      showNotice(l10n('救援 JSON 已開始下載，請確認檔案。原件可能已存在正常存檔，請核對後使用，不會自動重播。'));
     }catch(error){reportError(l10n('無法下載救援備份。'),error);}finally{button.disabled=false;}
   });
   $('show-live-panel').addEventListener('click', async () => {
@@ -547,7 +548,7 @@
     setRecordBusy(true, 'sync-log');
     try {
       const {session, refresh} = await prepareExport();
-      showNotice(`${sessionLabel(session)}：` + (refresh?.refreshed ? l10n("已更新公開 Log。{0}請到回顧頁查看涵蓋範圍。", refresh.partial ? l10n('仍有待確認資料：')+refresh.reason+'。' : '') : l10n("未更新：{0}", refresh?.reason || l10n('請回到該場對局頁再試'))), !refresh?.refreshed || refresh?.partial);
+      showNotice(`${sessionLabel(session)}：` + (refresh?.refreshed ? l10n("已更新公開 Log。{0}請到回顧頁查看涵蓋範圍。", refresh.partial ? l10n('仍有待確認資料：')+reasonText(refresh)+'。' : '') : l10n("未更新：{0}", reasonText(refresh) || l10n('請回到該場對局頁再試'))), !refresh?.refreshed || refresh?.partial);
       await loadData();
     } catch(error) { reportError(l10n('未能更新公開 Log。'), error); }
     finally { setRecordBusy(false); renderSessions(); }

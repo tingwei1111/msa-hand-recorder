@@ -10,6 +10,10 @@ const previewWorkspace=MSAPreviewWorkspace.create({
 const database=previewWorkspace.database;
 const captureMessageListeners=previewWorkspace.messageListeners;
 async function fixtureMessage(msg){
+ if(msg.type==='MSA_RECORD_BATCH'){
+  const results=[];for(const payload of msg.observations)results.push(await fixtureMessage(payload));
+  return {ok:true,results};
+ }
  if(msg.type==='MSA_STATUS'){
   await chrome.storage.local.set({'msa.status.preview':{...msg.status,updatedAt:new Date().toISOString(),tabId:1}});return {ok:true};
  }
@@ -26,7 +30,7 @@ async function fixtureMessage(msg){
   const key='msa.session.'+msg.gameId+'.'+msg.runId,source=database[key];
   if(!source)return {ok:false,error:'合成來源記錄尚未建立'};
   const saved=structuredClone(source);
-  saved.captureIssues=[...(saved.captureIssues||[]),{code:msg.issue?.code==='buffer-full'?'buffer-full':'context-changed-pending',
+  saved.captureIssues=[...(saved.captureIssues||[]),{code:['buffer-full','record-rejected'].includes(msg.issue?.code)?msg.issue.code:'context-changed-pending',
    observedAt:new Date().toISOString(),pendingCount:msg.issue?.pendingCount||1,reason:msg.issue?.reason||'合成測試：觀察尚未確認存妥'}];
   await chrome.storage.local.set({[key]:saved});return {ok:true};
  }
@@ -35,9 +39,15 @@ async function fixtureMessage(msg){
  if(fixtureWriteFailure)return {ok:false,error:'合成測試：儲存失敗，尚未寫入本機'};
  const key='msa.session.'+msg.gameId+'.'+msg.runId;
  const base=database[key]||MSARecorderCore.createSession({id:msg.gameId+'.'+msg.runId,gameId:msg.gameId,playerName:msg.playerName});
+ if(msg.sequence&&msg.sequence<=(base.captureWriteSequence||0)){
+  await previewWorkspace.recoveryJournal?.complete([msg]).catch(()=>{});
+  return {ok:true,id:base.id,snapshotCount:base.snapshots.length,eventCount:base.battleLog?.events?.length||0,coverage:base.battleLog?.coverage||null};
+ }
  if(!base.playerName&&msg.playerName)base.playerName=msg.playerName;
  const saved=msg.type==='MSA_LOG'?MSABattleLogCore.ingest(base,msg.batch):MSARecorderCore.appendSnapshot(base,msg.snapshot);
+ if(msg.sequence)saved.captureWriteSequence=msg.sequence;
  await chrome.storage.local.set({[key]:saved});
+ await previewWorkspace.recoveryJournal?.complete([msg]).catch(()=>{});
  return {ok:true,id:saved.id,snapshotCount:saved.snapshots.length,eventCount:saved.battleLog?.events?.length||0,coverage:saved.battleLog?.coverage||null};
 }
 function makeCard(code,ref,back=false){

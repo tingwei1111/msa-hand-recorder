@@ -330,3 +330,123 @@ test('status detail retains errors and gap explanations once while suppressing r
   assert.match(unknown.statusDetail,/不判定自己或對手/);
   assert.equal((unknown.statusDetail.match(/玩家身分已改變/g)||[]).length,1);
 });
+
+
+test('collapsed projection skips public merge and Wasm, yet tracks latest saved count and errors',()=>{
+  const realm=vm.createContext({});
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'../extension/recorder-core.js'),'utf8'),realm);
+  realm.MSABattleLogCore={combineSessions(){throw Error('collapsed merge must not run');},buildTimeline(){throw Error('collapsed timeline must not run');}};
+  realm.MSADeckTrackerCore={project(){throw Error('collapsed Wasm must not run');}};
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'../extension/live-panel-core.js'),'utf8'),realm);
+  const render=realm.MSALivePanelCore.createProjector(),record=hand(session()),values=store(record);
+  const first=render(values,context({panelExpanded:false}));
+  assert.equal(first.summaryOnly,true);assert.equal(first.snapshotCount,1);assert.equal(first.statusTone,'success');
+  assert.equal(first.latestSnapshot,null);assert.equal(first.deckTracker,undefined);
+  values['msa.session.'+record.id]=hand(record,{timestamp:'2000-01-01T00:00:01Z',hand:[{cardCode:'GD01-002',count:1}],expectedCount:1});
+  assert.equal(render(values,context({panelExpanded:false})).snapshotCount,2);
+  assert.equal(render(values,context({panelExpanded:false,quarantinedCount:1})).statusTone,'warning');
+  assert.equal(render(values,context({panelExpanded:false,writeError:'quota'})).statusTone,'error');
+});
+test('collapsed projection preserves player isolation and rebuilding after expansion uses the newest saved hand',()=>{
+  const render=live.createProjector(),own=hand(session()),foreign=hand(session({id:GAME+'.other',playerName:'Demo South'}));
+  const values=store(own,foreign);
+  assert.equal(render(values,context({panelExpanded:false,playerName:'Demo South'})).snapshotCount,0);
+  assert.equal(render(values,context({panelExpanded:false,playerName:''})).sessionId,null);
+  render(values,context({panelExpanded:false}));
+  values['msa.session.'+own.id]=hand(own,{timestamp:'2000-01-01T00:00:01Z',hand:[{cardCode:'GD01-002',count:1}],expectedCount:1});
+  const expanded=render(values,context({panelExpanded:true}));
+  assert.equal(expanded.snapshotCount,2);assert.deepEqual(expanded.handCards,[{cardCode:'GD01-002',count:1}]);
+});
+
+test('structured panel details translate sources once, retain literal parameters and deduplicate counters',()=>{
+  let language='en';
+  const catalog={
+    en:{'觀察失敗：{0}':'Observation failed: {0}','儲存失敗：{0}。下方僅顯示已存資料。':'Save failed: {0}. Saved data only.'},
+    cn:{'觀察失敗：{0}':'观察失败：{0}','儲存失敗：{0}。下方僅顯示已存資料。':'保存失败：{0}。仅显示已存数据。'}
+  };
+  const calls=[],t=(source,...params)=>(catalog[language][source] || source).replace(/\{(\d+)\}/g,(all,index)=>index<params.length?String(params[index]):all);
+  const realm=vm.createContext({MSARecorderCore:core,MSAI18n:{t,
+    status(value){calls.push(value.messageParts[0]);return value.messageParts.map(part=>t(part.source,...part.params)).join(' · ');},
+    message(){throw Error('structured status must never retranslate a rendered parameter');}}});
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'../extension/live-panel-core.js'),'utf8'),realm);
+  const raw='未知 · 儲存失敗：{1}',note={code:'observation-error',source:'觀察失敗：{0}',params:[raw]};
+  const values=store(hand(session())),ctx=context({writeError:'未知',captureNote:'stale legacy',captureNoteParts:[note],
+    statusMessage:'stale legacy',statusMessageParts:[{code:'saved-hand',source:'已保存 {0} 筆手牌',params:[9]},
+      {code:'saved-log',source:'Log {0} 筆',params:[8]},{code:'pending',source:'待存 {0} 筆',params:[7]},
+      {code:'write-error',source:'儲存失敗：{0}',params:['未知']},note]});
+  for (const method of ['project','projectSummary']) {
+    language='en';const first=realm.MSALivePanelCore[method](values,ctx);
+    assert.ok(first.statusDetail.includes('Observation failed: '+raw));
+    assert.ok(first.statusDetail.includes('Save failed: 未知.'));
+    assert.equal(first.statusDetail.split(raw).length-1,1);
+    assert.equal(first.statusDetailLocalized,true);
+    assert.doesNotMatch(first.statusDetail,/stale legacy|Log 8|已保存 9|待存 7/);
+    language='cn';const second=realm.MSALivePanelCore[method](values,ctx);
+    assert.ok(second.statusDetail.includes('观察失败：'+raw));
+    assert.doesNotMatch(second.statusDetail,/Observation failed|Save failed/);
+  }
+  assert.ok(calls.every(part=>part.source==='觀察失敗：{0}' && part.params[0]===raw));
+});
+
+test('both panel projections keep uncertain recovery visible while durable rescue is not a saved hand',()=>{
+  const values=store(hand(session()));
+  for (const method of ['project','projectSummary']) {
+    for (const recovery of [{pendingCount:1},{unprotectedCount:1},{error:'recovery-open-failed'}]) {
+      const model=live[method](values,context({enabled:false,recovery}));
+      assert.equal(model.statusTone,'warning');
+      assert.match(model.statusDetail,/救援暫存/);
+      assert.equal(model.snapshotCount,1);
+    }
+    const full=live[method](values,context({recovery:{unprotectedCount:1,error:'recovery-journal-full'}}));
+    assert.match(full.statusDetail,/已滿，下載不會清除/);
+    assert.match(full.statusDetail,/一般記錄仍會嘗試保存，請保留原分頁/);
+    const saved=live[method]({},context({recovery:{durableCount:4}}));
+    assert.equal(saved.snapshotCount,0);
+    assert.notEqual(saved.statusTone,'success');
+    assert.match(saved.statusDetail,/持久化 4 筆/);
+    const latest=live[method](values,context({recovery:{},quarantinedCount:0,statusMessageParts:[
+      {code:'recovery-pending',source:'救援暫存確認中 {0} 筆',params:[1]},
+      {code:'quarantined',source:'stale quarantine',params:[]}
+    ]}));
+    assert.equal(latest.statusTone,'success');
+    assert.doesNotMatch(latest.statusDetail,/確認中|stale quarantine/);
+  }
+});
+
+test('collapsed status does not claim complete saved hands for malformed or currently unknown observations',()=>{
+  const malformed={...session(),snapshots:[null]};
+  assert.equal(live.projectSummary(store(malformed),context()).statusTone,'warning');
+  assert.equal(live.projectSummary(store(hand(session())),context({quality:'unavailable'})).statusLabel,'目前畫面待辨識');
+  assert.equal(live.projectSummary(store(hand(session())),context({writeError:'  '})).statusTone,'success');
+  assert.equal(live.projectSummary({},null).identityConfirmed,false);
+});
+
+test('cached public failures use the current language without rebuilding unchanged evidence',async()=>{
+  const realm=vm.createContext({MSARecorderCore:core,navigator:{languages:['en']}});
+  for (const file of ['i18n-data.js','i18n.js']) vm.runInContext(fs.readFileSync(path.join(__dirname,'../extension',file),'utf8'),realm);
+  await realm.MSAI18n.ready();
+  const fixtures=[
+    {source:'公開紀錄合併模組未載入，僅顯示目前記錄段。',multiple:true,modules:{}},
+    {source:'部分公開紀錄無法合併，僅顯示目前記錄段。',multiple:true,modules:{combineSessions(){throw Error('synthetic merge failure');}}},
+    {source:'公開紀錄摘要無法確認，請開啟回顧頁檢查原文。',modules:{buildTimeline(){throw Error('synthetic timeline failure');}}}
+  ];
+  for (const fixture of fixtures) {
+    let calls=0;
+    realm.MSABattleLogCore=Object.fromEntries(Object.entries(fixture.modules).map(([name,fn])=>[name,(...args)=>{calls++;return fn(...args);} ]));
+    vm.runInContext(fs.readFileSync(path.join(__dirname,'../extension/live-panel-core.js'),'utf8'),realm);
+    const values=store(session(),...(fixture.multiple?[session({id:GAME+'.old'})]:[])),cache={};
+    await realm.MSAI18n.setLanguage('en');
+    const first=realm.MSALivePanelCore.project(values,context(),cache),publicKey=cache.publicKey;
+    assert.equal(cache.evidence.mergeProblem,fixture.source);
+    assert.ok(first.statusDetail.includes(realm.MSAI18n.t(fixture.source)));
+    const expectedCalls=calls;
+    await realm.MSAI18n.setLanguage('zh-CN');
+    const second=realm.MSALivePanelCore.project(values,context(),cache);
+    assert.equal(cache.publicKey,publicKey);
+    assert.equal(calls,expectedCalls,'language changes must reuse cached public evidence');
+    assert.ok(second.statusDetail.includes(realm.MSAI18n.t(fixture.source)));
+    assert.notEqual(second.statusDetail,first.statusDetail);
+    assert.doesNotMatch(second.statusDetail,/Public Log|Some public/);
+    assert.equal(second.statusDetailLocalized,true);
+  }
+});

@@ -1,11 +1,12 @@
 'use strict';
-importScripts('i18n-data.js', 'i18n.js', 'recorder-core.js', 'battle-log-core.js', 'diagnostics-core.js', 'annotations-core.js',
-  'library-core.js', 'library-store.js', 'card-provider.js');
+importScripts('i18n-data.js', 'i18n.js', 'recorder-core.js', 'export-i18n.js', 'battle-log-core.js', 'diagnostics-core.js', 'annotations-core.js',
+  'library-core.js', 'library-store.js', 'card-provider.js', 'recovery-journal.js');
 const queues = new Map();
 const preparing = new Map();
 const tabGames = new Map();
 const runOwners = new Map();
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+const recoveryJournal=globalThis.MSARecoveryJournal?.create();
 function trusted(sender) {
   try { return sender.tab && sender.frameId === 0 && new URL(sender.url).origin === 'https://mobilesuitarena.com'; }
   catch (_) { return false; }
@@ -33,6 +34,114 @@ function timeout(promise, milliseconds) {
   return Promise.race([promise, new Promise((_, reject) => {
     timer = setTimeout(() => reject(new Error('capture-timeout')), milliseconds);
   })]).finally(() => clearTimeout(timer));
+}
+function descriptorParts(parts){
+  if(!Array.isArray(parts))return undefined;
+  return parts.slice(0,12).filter(part=>part&&typeof part.source==='string'&&part.source.length<=300&&
+    Array.isArray(part.params)&&part.params.length<=6).map(part=>({code:String(part.code||'').slice(0,60),source:part.source,
+      params:part.params.map(value=>typeof value==='number'&&Number.isFinite(value)?value:String(value??'').slice(0,300))}));
+}
+function invalidObservation(payload,sender){
+  const log=payload?.type==='MSA_LOG';
+  if(!payload||!['MSA_RECORD','MSA_LOG'].includes(payload.type)||!UUID.test(payload.gameId||'')||!UUID.test(payload.runId||'')||
+    senderGameId(sender)!==payload.gameId||
+    (payload.sequence!==undefined&&(!Number.isSafeInteger(payload.sequence)||payload.sequence<1))||
+    (log?!payload.batch||!Array.isArray(payload.batch.rows)||payload.batch.rows.length>12000||JSON.stringify(payload.batch).length>1500000:
+      !payload.snapshot||JSON.stringify(payload.snapshot).length>20000))
+    return {ok:false,retryable:false,code:'invalid-record-format',error:'無效的紀錄格式'};
+  return null;
+}
+function summary(session){return {ok:true,id:session.id,snapshotCount:session.snapshots.length,eventCount:session.battleLog?.events?.length||0,coverage:session.battleLog?.coverage||null};}
+async function writeObservations(payloads,sender){
+  const first=payloads[0],id=first.gameId+'.'+first.runId,key='msa.session.'+id,tabId=sender.tab.id;
+  runOwners.set(id,{tabId,documentId:sender.documentId});
+  return enqueue(key,async()=>{
+    const values=await chrome.storage.local.get([key,'msa.settings']);
+    if(values['msa.settings']?.enabled===false)return payloads.map(()=>({ok:true,paused:true}));
+    let session=values[key],changed=false,failuresChanged=false;
+    const failures=new Map((Array.isArray(session?.captureWriteFailures)?session.captureWriteFailures:[])
+      .filter(item=>item&&Number.isSafeInteger(item.sequence)&&item.sequence>0&&typeof item.code==='string'&&typeof item.error==='string')
+      .map(item=>[item.sequence,{sequence:item.sequence,code:item.code,error:item.error}]));
+    const results=[],saved=[];
+    for(const payload of payloads){
+      const invalid=invalidObservation(payload,sender);
+      if(invalid){results.push(invalid);continue;}
+      if(payload.gameId!==first.gameId||payload.runId!==first.runId){results.push({ok:false,retryable:false,code:'context-mismatch',error:'對局頁面或記錄段落不符。'});continue;}
+      if(session?.captureSource&&(session.captureSource.tabId!==tabId||session.captureSource.documentId!==sender.documentId)){
+        results.push({ok:false,retryable:false,code:'source-mismatch',error:'對局頁面或記錄段落不符。'});continue;
+      }
+      if(session?.playerName&&payload.playerName&&session.playerName!==payload.playerName){results.push({ok:false,retryable:false,code:'player-mismatch',error:'同一紀錄不可混入不同玩家手牌'});continue;}
+      // The high-water mark includes gaps from rejected observations. Restore
+      // their original outcome before treating an old sequence as acknowledged.
+      // Otherwise a lost mixed-batch response could turn a rejected original
+      // into a false success and remove its only persistent rescue copy.
+      const previousFailure=failures.get(payload.sequence);
+      if(previousFailure){results.push({ok:false,retryable:false,code:previousFailure.code,error:previousFailure.error});continue;}
+      // This checkpoint lives in the same atomic storage.set as its snapshots.
+      // A lost batch acknowledgement can therefore be retried without replaying
+      // an earlier A -> B -> A sequence or duplicating public-log captures.
+      if(payload.sequence&&payload.sequence<=(session?.captureWriteSequence||0)){results.push({ok:true});saved.push(payload);continue;}
+      const log=payload.type==='MSA_LOG';
+      const current=session||MSARecorderCore.createSession({id,gameId:first.gameId,playerName:String(payload.playerName||'').slice(0,100),startedAt:log?payload.batch.observedAt:payload.snapshot.timestamp});
+      try{
+        const next=log?MSABattleLogCore.ingest(current,payload.batch):MSARecorderCore.appendSnapshot(current,payload.snapshot);
+        if(!next.captureSource)next.captureSource={tabId,documentId:sender.documentId};
+        if(!next.playerName&&payload.playerName)next.playerName=String(payload.playerName).slice(0,100);
+        if(payload.sequence)next.captureWriteSequence=payload.sequence;
+        session=next;changed=true;saved.push(payload);results.push({ok:true});
+      }catch(error){
+        const result={ok:false,retryable:false,code:'invalid-record-format',error:String(error.message||'無效的紀錄格式').slice(0,300)};
+        if(payload.sequence){
+          // A run's memory queue is bounded at 512 originals. Never evict a
+          // prior failure if imported/unfamiliar metadata reaches that bound.
+          if(failures.size>=512&&!failures.has(payload.sequence))throw new Error('capture-rejection-history-full');
+          failures.set(payload.sequence,{sequence:payload.sequence,code:result.code,error:result.error});failuresChanged=true;
+        }
+        results.push(result);
+      }
+    }
+    if(session&&failuresChanged){session.captureWriteFailures=[...failures.values()].sort((a,b)=>a.sequence-b.sequence);changed=true;}
+    if(changed)await chrome.storage.local.set({[key]:session});
+    let recoveryCleanupPending=false;
+    if(saved.length&&recoveryJournal){try{await recoveryJournal.complete(saved);}catch(_){recoveryCleanupPending=true;}}
+    if(session&&saved.length){
+      const latest=saved[saved.length-1],eventCount=session.battleLog?.events?.length||0;
+      const messageParts=[{code:'saved-hand',source:'已保存 {0} 筆手牌',params:[session.snapshots.length]},
+        {code:'saved-log',source:'Log {0} 筆',params:[eventCount]}];
+      await enqueue('tab:'+tabId,()=>tabGames.get(tabId)!==first.gameId?undefined:chrome.storage.local.set({['msa.status.'+tabId]:{
+        updatedAt:new Date().toISOString(),gameId:first.gameId,runId:first.runId,playerName:session.playerName,
+        quality:latest.type==='MSA_LOG'?'public-log':latest.snapshot.quality,messageParts,
+        message:`已保存 ${session.snapshots.length} 筆手牌 · Log ${eventCount} 筆`
+      }})).catch(()=>{});
+    }
+    return results.map(result=>result.ok&&session?{...summary(session),recoveryCleanupPending}:result);
+  });
+}
+async function rescueBackup(){
+  let persisted={records:[]},journalError='',pageReply=null,pageError='';
+  try{if(!recoveryJournal)throw new Error('recovery-unavailable');persisted=await recoveryJournal.backup();}
+  catch(error){journalError=String(error.message||error);}
+  try{
+    const tabs=await chrome.tabs.query({active:true,currentWindow:true});
+    if(!tabs[0]?.id)throw new Error('no-active-tab');
+    pageReply=await timeout(chrome.tabs.sendMessage(tabs[0].id,{type:'MSA_RESCUE_QUERY'},{frameId:0}),5000);
+    if(!pageReply?.ok||!Array.isArray(pageReply.backup?.records))throw new Error('no-recovery-page');
+  }catch(error){pageError=String(error.message||error);}
+  if(journalError&&pageError)return {ok:false,error:'無法讀取持久化救援或原分頁暫存；請保留原分頁並重試。'};
+  const groups=new Map();
+  for(const record of pageReply?.backup?.records||[]){
+    if(!UUID.test(record.gameId||'')||!UUID.test(record.runId||''))continue;
+    groups.set(record.gameId+'.'+record.runId,{...record,journal:[]});
+  }
+  for(const entry of persisted.records){
+    const key=entry.gameId+'.'+entry.runId;
+    if(!groups.has(key))groups.set(key,{gameId:entry.gameId,runId:entry.runId,playerName:entry.playerName,pending:[],quarantined:[],journal:[]});
+    groups.get(key).journal.push(entry);
+  }
+  return {ok:true,backup:{format:'msa-unsaved-rescue',schemaVersion:2,exportedAt:new Date().toISOString(),records:[...groups.values()],
+    limits:globalThis.MSARecoveryJournal?.LIMITS||null,retention:'download-does-not-clear-no-eviction',
+    recovery:{available:!journalError,durableRecordCount:persisted.records.length,error:journalError},page:{available:!pageError,error:pageError,scope:'active-tab-only'},
+    warning:'持久化救援涵蓋所有記錄頁；頁面記憶體僅來自目前分頁。原件可能已保存，不可自動重播或當作完整對局；其他頁面未確認持久化的暫存須切回原分頁另行下載。'}};
 }
 async function waitForGameWrites(gameId) {
   while (true) {
@@ -232,6 +341,8 @@ async function prepareExport(message) {
           session?.gameId === gameId && (!playerName || !session.playerName || session.playerName === playerName))
           .flatMap(([,session]) => (session.captureIssues || []).map(issue => ({...issue,sourceSessionId:session.id})));
         return {...result, ok:true, partial:result.partial || captureIssues.length > 0, gameId, attempts,captureIssues,
+          reasonParts:[...(result.reasonParts||[{code:result.code||'capture',source:result.reason||'已更新公開 Log',params:[]}]),
+            ...(captureIssues.length?[{code:'persisted-capture-gap',source:'既有紀錄含暫存缺口，請查看報告警告',params:[]}]:[])],
           reason:(result.reason || '已更新公開 Log') + (captureIssues.length ? '；既有紀錄含暫存缺口，請查看報告警告' : ''), preparedAt:new Date().toISOString()};
       }
       attempts[attempts.length-1].reason = result.reason;
@@ -256,11 +367,24 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   }
   if(message?.type==='MSA_GET_RESCUE'){
     if(!extensionSender(sender)){respond({ok:false,error:'不允許的救援備份來源。'});return false;}
-    (async()=>{
-      const tabs=await chrome.tabs.query({active:true,currentWindow:true});
-      if(!tabs[0]?.id)return {ok:false,error:'請切到仍開著的 MSA 分頁。'};
-      return timeout(chrome.tabs.sendMessage(tabs[0].id,{type:'MSA_RESCUE_QUERY'},{frameId:0}),5000);
-    })().then(respond,error=>respond({ok:false,error:'無法取得分頁暫存；請切到原 MSA 分頁並保持開啟。'}));return true;
+    rescueBackup().then(respond,error=>respond({ok:false,error:String(error.message||error)}));return true;
+  }
+  if(message?.type==='MSA_STAGE_RECORD'){
+    if(!trusted(sender)||senderGameId(sender)!==message.payload?.gameId){respond({durable:false,error:'recovery-invalid-source'});return false;}
+    if(!recoveryJournal){respond({durable:false,error:'recovery-unavailable'});return false;}
+    recoveryJournal.stage(message.payload,{tabId:sender.tab.id,documentId:sender.documentId})
+      .then(result=>respond({ok:true,...result}),error=>respond({ok:false,durable:false,error:String(error.message||error)}));return true;
+  }
+  if(message?.type==='MSA_RECORD_BATCH'){
+    const payloads=message.observations;
+    if(!trusted(sender)||!Array.isArray(payloads)||!payloads.length||payloads.length>16||
+      !UUID.test(message.gameId||'')||!UUID.test(message.runId||'')||senderGameId(sender)!==message.gameId||
+      payloads.some((payload,index)=>!payload||payload.gameId!==message.gameId||payload.runId!==message.runId||
+        !Number.isSafeInteger(payload.sequence)||payload.sequence<1||(index&&payload.sequence<=payloads[index-1].sequence))){
+      respond({ok:false,error:'無效的紀錄格式'});return false;
+    }
+    tabGames.set(sender.tab.id,message.gameId);
+    writeObservations(payloads,sender).then(results=>respond({ok:true,results}),error=>respond({ok:false,results:payloads.map(()=>({ok:false,error:String(error.message||error)}))}));return true;
   }
   if(message?.type==='MSA_OPEN_LIBRARY'){
     if(!extensionSender(sender)&&!trusted(sender)){respond({ok:false,reason:'不允許的管理入口來源。'});return false;}
@@ -335,41 +459,16 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
       quality: String(status.quality || 'unavailable').slice(0, 30),
       version:String(status.version||'').slice(0,30),runId:UUID.test(status.runId||'')?status.runId:'',
       pendingCount:Math.max(0,Math.min(512,Number(status.pendingCount)||0)),lastSavedAt:String(status.lastSavedAt||'').slice(0,40),
+      quarantinedCount:Math.max(0,Math.min(512,Number(status.quarantinedCount)||0)),messageParts:descriptorParts(status.messageParts),
+      recovery:status.recovery&&{durableCount:Math.max(0,Math.min(512,Number(status.recovery.durableCount)||0)),
+        pendingCount:Math.max(0,Math.min(512,Number(status.recovery.pendingCount)||0)),unprotectedCount:Math.max(0,Math.min(512,Number(status.recovery.unprotectedCount)||0)),
+        error:String(status.recovery.error||'').slice(0,100)},
       gameId: String(status.gameId || '').slice(0, 40), playerName: String(status.playerName || '').slice(0, 100)
     }})).then(() => respond({ok:true}), error => respond({ok:false,error:error.message}));
     return true;
   }
-  const {gameId, runId, playerName, snapshot, batch} = message;
-  const isLog = message.type === 'MSA_LOG';
-  if (!UUID.test(gameId || '') || !UUID.test(runId || '') ||
-      senderGame !== gameId ||
-      (isLog ? !batch || !Array.isArray(batch.rows) || batch.rows.length > 12000 || JSON.stringify(batch).length > 1500000 :
-        !snapshot || JSON.stringify(snapshot).length > 20000)) {
-    respond({ok:false,code:'invalid-record-format',retryable:false,error:'無效的紀錄格式'}); return false;
-  }
-  const id = `${gameId}.${runId}`;
-  runOwners.set(id,{tabId,documentId:sender.documentId});
-  const key = `msa.session.${id}`;
-  enqueue(key, async () => {
-    const values = await chrome.storage.local.get([key, 'msa.settings']);
-    if (values['msa.settings']?.enabled === false) return {ok:true,paused:true};
-    const existing = values[key] || MSARecorderCore.createSession({id,gameId,playerName:String(playerName || '').slice(0,100),startedAt:isLog ? batch.observedAt : snapshot.timestamp});
-    if (!existing.captureSource) existing.captureSource = {tabId,documentId:sender.documentId};
-    if (existing.playerName && playerName && existing.playerName !== playerName) return {ok:false,retryable:false,code:'player-mismatch',error:'同一紀錄不可混入不同玩家手牌'};
-    // A public-log-only capture can precede the first visible own hand.
-    if (!existing.playerName && playerName) existing.playerName=String(playerName).slice(0,100);
-    let session;
-    try { session = isLog ? MSABattleLogCore.ingest(existing,batch) : MSARecorderCore.appendSnapshot(existing,snapshot); }
-    catch(error){return {ok:false,retryable:false,code:'invalid-record-format',error:String(error.message || '無效的紀錄格式')};}
-    const eventCount=session.battleLog?.events?.length || 0;
-    await chrome.storage.local.set({[key]:session});
-    // A delayed old-page write must not overwrite the new page's registration.
-    await enqueue(`tab:${tabId}`, () => tabGames.get(tabId) !== gameId ? undefined : chrome.storage.local.set({[statusKey]:{
-      updatedAt:new Date().toISOString(),gameId,playerName:session.playerName,quality:isLog ? 'public-log' : snapshot.quality,
-      message:isLog ? `已儲存 ${eventCount} 筆公開 Log · ${session.snapshots.length} 筆手牌` :
-        `已儲存 ${session.snapshots.length} 筆手牌；${snapshot.turn === null ? '觀察回合 '+snapshot.observedTurn : (snapshot.turnSource==='log'?'T':'推計 T')+snapshot.turn} · Log ${eventCount} 筆`
-    }})).catch(() => {});
-    return {ok:true,id,snapshotCount:session.snapshots.length,eventCount,coverage:session.battleLog?.coverage || null};
-  }).then(respond,error=>respond({ok:false,error:error.message || '儲存失敗'}));
+  const invalid=invalidObservation(message,sender);
+  if(invalid){respond(invalid);return false;}
+  writeObservations([message],sender).then(results=>respond(results[0]),error=>respond({ok:false,error:String(error.message||'儲存失敗')}));
   return true;
 });

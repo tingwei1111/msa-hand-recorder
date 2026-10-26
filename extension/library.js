@@ -4,6 +4,7 @@
   await globalThis.MSAI18n?.ready();
 
   const core=globalThis.MSALibraryCore,$=id=>document.getElementById(id);
+  globalThis.MSALibraryTabs?.mount({document,window});
   let values={},busy=false,importState=null,deckBase=null,preferredSession=new URLSearchParams(location.search).get('id')||new URLSearchParams(location.search).get('session')||'';
   const matchDrafts=new Map(),draftFields=['match-player','identity-confirmed','result-confirmed','match-result','match-order','match-deck'];
   let displayedSession='',deckDirty=false,reloadTimer,loading=false,pendingReload=false;
@@ -39,7 +40,7 @@
     return result;
   }
   async function perform(operation){
-    if(busy)return;busy=true;const controls=[...document.querySelectorAll('button,input,select,textarea')],states=controls.map(node=>[node,node.disabled]);
+    if(busy)return;busy=true;const controls=[...document.querySelectorAll('button:not([role="tab"]),input,select,textarea')],states=controls.map(node=>[node,node.disabled]);
     controls.forEach(node=>{node.disabled=true;});document.body.setAttribute('aria-busy','true');
     try{await operation();}catch(error){notice(globalThis.MSAI18n?.message(String(error?.message||error))||String(error?.message||error),'error');}
     finally{busy=false;states.forEach(([node,disabled])=>{if(node.isConnected)node.disabled=disabled;});document.body.removeAttribute('aria-busy');updateButtons();if(pendingReload){pendingReload=false;scheduleReload();}}
@@ -112,6 +113,7 @@
   function selectedSession(){return values['msa.session.'+$('match-session').value];}
   function renderMatch(){
     const record=selectedSession();
+    $('match-empty').hidden=Boolean(record);$('match-form').hidden=!record;
     $('match-source').textContent=record?l10n("來源段落 {0} · {1} 筆已存手牌 · {2} 筆公開事件", record.id, record.snapshots.length, record.battleLog?.events?.length||0):l10n('先匯入或記錄一場對局。');
     $('match-player').value=record?.playerName||'';$('match-player').readOnly=Boolean(record?.playerName?.trim());
     $('identity-confirmed').checked=false;$('result-confirmed').checked=false;$('match-result').value='unknown';$('match-order').value='unknown';$('match-deck').value='';$('match-saved').textContent='';

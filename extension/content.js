@@ -5,6 +5,9 @@
   let badge, badgeText, interactionVersion = 0, lastInteractionAt = 0, pointerDown = false, activeCapture = null;
   let livePanelController = null;
   const contexts = new Map();
+  const part=(code,source,...params)=>({code,source,params});
+  const renderPart=item=>globalThis.MSAI18n?MSAI18n.t(item.source,...item.params):item.source.replace(/\{(\d+)\}/g,(match,index)=>index<item.params.length?String(item.params[index]??''):match);
+  const renderParts=items=>items.map(renderPart).join(' · ');
   const gameId = () => location.pathname.match(/^\/game\/([a-f0-9-]{36})(?:\/|$)/i)?.[1] || null;
   const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
   const sameContext = ctx => current === ctx && gameId() === ctx.gameId;
@@ -27,8 +30,9 @@
         getContext:() => current && sameContext(current) ? {
           gameId:current.gameId,runId:current.runId,playerName:current.playerName,
           enabled:settings.enabled,pendingCount:current.writer.state().pendingCount,
-          writeError:current.writeError || (current.connectionError ? '記錄器連線中斷，請重新整理此頁' : ''),
-          captureNote:current.captureNote,statusMessage:current.statusMessage || '',quality:current.lastQuality
+          writeError:current.writeError || (current.connectionError ? renderPart(part('disconnected','記錄器連線中斷，請重新整理此頁')) : ''),
+          captureNote:current.captureNote,captureNoteParts:current.captureNoteParts||[],statusMessage:current.statusMessage || '',
+          statusMessageParts:current.statusMessageParts||[],quarantinedCount:current.quarantinedCount,recovery:current.writer.state().recovery,quality:current.lastQuality
           ,healthAlerts:current.healthAlerts || [],endObserved:Boolean(current.endObservedAt)
         } : null,
         project:MSALivePanelCore.createProjector?.() || MSALivePanelCore.project,
@@ -67,42 +71,55 @@
     if (badge?.isConnected) return;
     badge = document.createElement('div'); badge.id = 'msa-hand-recorder-indicator';
     const shadow = badge.attachShadow({mode:'closed'}), style = document.createElement('style');
-    style.textContent = ':host{position:fixed;right:8px;top:8px;z-index:2147483646;pointer-events:none}span{display:block;max-width:300px;padding:5px 9px;border:1px solid #466059;border-radius:8px;background:#0b1f20ec;color:#d9f5eb;font:11px/1.5 system-ui,sans-serif;box-shadow:0 2px 8px #0003}';
+    style.textContent = ':host{position:fixed;right:8px;top:8px;z-index:2147483646;pointer-events:none}span{display:block;max-width:300px;padding:5px 9px;border:1px solid #555;border-radius:4px;background:#151515ef;color:#f0f0f0;font:11px/1.5 system-ui,sans-serif;box-shadow:0 2px 8px #0003}';
     badgeText = document.createElement('span'); shadow.append(style,badgeText); document.documentElement.append(badge);
   }
   function publish(ctx, message, quality = ctx?.lastQuality || 'unavailable') {
     if (!ctx || !sameContext(ctx)) return;
-    const pending = ctx.writer.state().pendingCount;
-    const text = `${message} · Log ${ctx.eventCount} 筆${pending ? ` · 待存 ${pending} 筆` : ''}${ctx.writeError ? ` · 儲存失敗：${ctx.writeError}` : ''}${ctx.captureNote ? ` · ${ctx.captureNote}` : ''}`;
+    const writerState=ctx.writer.state(),pending=writerState.pendingCount,recovery=writerState.recovery;
+    const parts=[typeof message==='string'?part('state',message):message,part('saved-log','Log {0} 筆',ctx.eventCount)];
+    if(pending)parts.push(part('pending','待存 {0} 筆',pending));
+    if(ctx.writeError)parts.push(part('write-error','儲存失敗：{0}',ctx.writeError));
+    if(ctx.captureNote)parts.push(...(ctx.captureNoteParts?.length?ctx.captureNoteParts:[part('capture-note',ctx.captureNote)]));
+    if(ctx.quarantinedCount)parts.push(part('quarantined','{0} 筆格式異常已隔離；請下載救援備份，有效觀察繼續保存',ctx.quarantinedCount));
+    if(recovery?.durableCount)parts.push(part('recovery-durable','救援原件已持久化 {0} 筆',recovery.durableCount));
+    if(recovery?.pendingCount)parts.push(part('recovery-pending','救援暫存確認中 {0} 筆',recovery.pendingCount));
+    if(recovery?.unprotectedCount)parts.push(part('recovery-unconfirmed',recovery.error==='recovery-journal-full'?
+      '救援暫存已滿，下載不會清除；一般記錄仍會嘗試保存，請保留原分頁。':'救援暫存未確認持久化；請保留原分頁。'));
+    const text=renderParts(parts);
     refreshHealth(ctx);
     const signature = `${text}|${quality}|${ctx.playerName}|${ctx.healthSignature || ''}`;
     if (signature === ctx.statusSignature) return;
-    ctx.statusSignature = signature; ctx.statusMessage = text;
+    ctx.statusSignature = signature; ctx.statusMessage = text;ctx.statusMessageParts=parts;ctx.lastStatusPart=parts[0];
     if (!syncLivePanel()) { mountBadge(); badgeText.textContent = `🃏 ${text}`; }
     chrome.runtime.sendMessage({type:'MSA_STATUS',status:{message:text,quality,gameId:ctx.gameId,playerName:ctx.playerName,
-      version:globalThis.MSARecorderCore?.VERSION || '',runId:ctx.runId,pendingCount:pending,lastSavedAt:ctx.lastSavedAt || ''}})
+      version:globalThis.MSARecorderCore?.VERSION || '',runId:ctx.runId,pendingCount:pending,lastSavedAt:ctx.lastSavedAt || '',
+      messageParts:parts,quarantinedCount:ctx.quarantinedCount,recovery}})
       .catch(() => {
         if (!sameContext(ctx)) return;
         if(!ctx.connectionError)ctx.connectionErrorSince=Date.now();ctx.connectionError = true;refreshHealth(ctx);
-        if (!syncLivePanel()) { mountBadge(); badgeText.textContent = '🃏 記錄器連線中斷，請重新整理此頁'; }
+        if (!syncLivePanel()) { mountBadge(); badgeText.textContent = renderPart(part('disconnected','🃏 記錄器連線中斷，請重新整理此頁')); }
       });
   }
   const createWriter = () => MSACaptureCoordinator.createWriteQueue({
     write: payload => chrome.runtime.sendMessage(payload),
+    writeBatch:observations=>chrome.runtime.sendMessage({type:'MSA_RECORD_BATCH',gameId:observations[0].gameId,runId:observations[0].runId,observations}),
+    batchDelayMs:100,maxBatch:16,maxBatchBytes:512*1024,
+    persist:payload=>MSACaptureCoordinator.withTimeout(chrome.runtime.sendMessage({type:'MSA_STAGE_RECORD',payload}),3000,'recovery-timeout'),
+    onRecovery(){if(current&&sameContext(current))publish(current,current.lastStatusPart||part('waiting','等待自己的可見手牌'));},
     onResult(payload,result) {
       const ctx = contexts.get(payload.runId); if (!ctx) return;
       ctx.snapshotCount = result.snapshotCount || 0; ctx.eventCount = result.eventCount || 0;
       if (result.coverage) ctx.coverage = result.coverage;
       if (result.id) ctx.sessionIds.add(result.id);
       if(payload.type==='MSA_RECORD'){ctx.savedSignature=observationSignature(payload.snapshot);ctx.lastSavedAt=new Date().toISOString();}
-      ctx.writeError = ''; ctx.writeErrorSince=0;ctx.connectionError = false; publish(ctx, `已保存 ${ctx.snapshotCount} 筆手牌`);
+      ctx.writeError = ''; ctx.writeErrorSince=0;ctx.connectionError = false; publish(ctx,part('saved-hand','已保存 {0} 筆手牌',ctx.snapshotCount));
       if (ctx.rejectedCount > ctx.persistedRejectedCount && !ctx.persistingGap) persistOverflow(ctx);
       persistQuarantine(ctx);
     },
     onQuarantine(payload) {
       const ctx=contexts.get(payload.runId);if(!ctx)return;
       ctx.quarantinedCount+=1;
-      ctx.captureNote=`${ctx.quarantinedCount} 筆格式異常已隔離；請下載救援備份，有效觀察繼續保存`;
       persistQuarantine(ctx);publish(ctx,'有隔離原件待備份');
     },
     onError(payload,error) {
@@ -121,22 +138,22 @@
         chrome.runtime.sendMessage({type:'MSA_CAPTURE_GAP',gameId:previous.gameId,runId:previous.runId,
           issue:{code:'navigation-pending',observedAt:new Date().toISOString(),pendingCount:pending.pendingCount,
             reason:'頁面／設定切換時仍有觀察尚未確認存妥；已隔離舊暫存'}})
-          .then(result => { if (!result?.ok && current) { current.captureNote = '舊段暫存缺口未能寫入，請保留此頁'; publish(current,'記錄有缺口'); } })
-          .catch(() => { if (current) { current.captureNote = '舊段暫存缺口未能寫入，請保留此頁'; publish(current,'記錄有缺口'); } });
+          .then(result => { if (!result?.ok && current) { current.captureNote = '舊段暫存缺口未能寫入，請保留此頁'; current.captureNoteParts=[]; publish(current,'記錄有缺口'); } })
+          .catch(() => { if (current) { current.captureNote = '舊段暫存缺口未能寫入，請保留此頁'; current.captureNoteParts=[]; publish(current,'記錄有缺口'); } });
       }
     }
     if (!id) { current = null; badge?.remove(); livePanelController?.sync(); return null; }
     const ctx = {gameId:id,runId:crypto.randomUUID(),lockedSide:null,observedTurn:0,activeSide:null,anchor:null,lastLogTurn:null,
       handSignature:'',logSignature:'',lastLogScan:0,started:false,endedAt:null,handEnded:false,playerName:'',
       snapshotCount:0,eventCount:0,lastQuality:'unavailable',sessionIds:new Set(),coverage:null,statusSignature:'',
-      captureNote:'',writeError:'',healthAlerts:[],healthDismissed:{},healthSignature:'',writeErrorSince:0,
+      captureNote:'',captureNoteParts:[],writeError:'',healthAlerts:[],healthDismissed:{},healthSignature:'',writeErrorSince:0,sequence:0,
       changedAt:0,observedSignature:'',savedSignature:'',lastSavedAt:'',handExpected:false,handExpectedAt:0,endObservedAt:0,
       quarantinedCount:0,persistedQuarantinedCount:0,persistingQuarantine:false,
       rejectedCount:0,persistedRejectedCount:0,persistingGap:false,nextGapAttemptAt:0,lastRejectedSignature:'',autoStartDone:false,autoEndDone:false,autoAttempts:{start:0,end:0},nextAutoAt:0,writer:createWriter()};
     current = ctx; contexts.set(ctx.runId,ctx); publish(ctx, '已連線，等待可見手牌／公開 Log'); return ctx;
   }
   function enqueue(ctx,type,data) {
-    const result = ctx.writer.enqueue({type,gameId:ctx.gameId,runId:ctx.runId,playerName:ctx.playerName || settings.playerName.trim(),...data});
+    const result = ctx.writer.enqueue({type,gameId:ctx.gameId,runId:ctx.runId,sequence:++ctx.sequence,playerName:ctx.playerName || settings.playerName.trim(),...data});
     if (!result.accepted) {
       const signature = JSON.stringify(type === 'MSA_RECORD' ? {...data.snapshot,timestamp:undefined} : {...data.batch,observedAt:undefined});
       if (signature !== ctx.lastRejectedSignature) { ctx.rejectedCount += 1; ctx.lastRejectedSignature = signature; }
@@ -227,9 +244,9 @@
       if(!view.ended)ctx.endObservedAt=0;
       updateTurn(ctx,view); captureHand(ctx,view); captureLog(ctx,view,options.forceLog);
       void ctx.writer.retry();
-      publish(ctx,ctx.started ? `已保存 ${ctx.snapshotCount} 筆手牌` : view.ended ? '已結束；可收錄公開 Log，無法補回手牌' : '等待自己的可見手牌');
+      publish(ctx,ctx.started ? part('saved-hand','已保存 {0} 筆手牌',ctx.snapshotCount) : view.ended ? '已結束；可收錄公開 Log，無法補回手牌' : '等待自己的可見手牌');
       if (!options.skipAuto) scheduleAuto(ctx,view);
-    } catch (error) { publish(current,`觀察失敗：${String(error.message || error).slice(0,100)}`); }
+    } catch (error) { publish(current,part('observation-error','觀察失敗：{0}',String(error.message || error).slice(0,100))); }
     finally { sampling = false; }
   }
   const reasons = {
@@ -311,13 +328,17 @@
     if (!flush.ok) code = 'storage-pending';
     if (!code) code = 'captured';
     const result = {ok:true,gameId:ctx.gameId,runId:ctx.runId,refreshed:captured && flush.ok,
-      partial:!ctx.coverage?.publicLogComplete || !settled || !flush.ok || !restored || ctx.rejectedCount > 0 || code !== 'captured',
+      partial:!ctx.coverage?.publicLogComplete || !settled || !flush.ok || !restored || ctx.rejectedCount > 0 || ctx.quarantinedCount > 0 || code !== 'captured',
       code,reason:reasons[code] || code,observedRows,restored,initiallyOpen,pendingCount:flush.pendingCount,
-      unbufferedObservationCount:ctx.rejectedCount,sessionIds:[...ctx.sessionIds],coverage:ctx.coverage,
+      unbufferedObservationCount:ctx.rejectedCount,quarantinedCount:ctx.quarantinedCount,recovery:ctx.writer.state().recovery,sessionIds:[...ctx.sessionIds],coverage:ctx.coverage,
       capturedAt:new Date().toISOString()};
-    if (!restored) result.reason += '；自動開啟的視窗未恢復（操作權已改變）';
-    if (ctx.rejectedCount) result.reason += `；暫存滿時有 ${ctx.rejectedCount} 筆觀察未保存`;
-    if (sameContext(ctx)) { ctx.captureNote = result.reason; publish(ctx,`已保存 ${ctx.snapshotCount} 筆手牌`); }
+    const reasonParts=[part(code,reasons[code]||code)];
+    if(!restored)reasonParts.push(part('not-restored','自動開啟的視窗未恢復（操作權已改變）'));
+    if(ctx.rejectedCount)reasonParts.push(part('buffer-gap','暫存滿時有 {0} 筆觀察未保存',ctx.rejectedCount));
+    if(ctx.quarantinedCount)reasonParts.push(part('quarantined','{0} 筆格式異常已隔離；請下載救援備份，有效觀察繼續保存',ctx.quarantinedCount));
+    result.reasonParts=reasonParts;result.reason=renderParts(reasonParts);
+    if (sameContext(ctx)) { ctx.captureNoteParts=reasonParts.filter(item=>item.code!=='quarantined');ctx.captureNote=renderParts(ctx.captureNoteParts);
+      publish(ctx,part('saved-hand','已保存 {0} 筆手牌',ctx.snapshotCount)); }
     return result;
   }
   function requestCapture(ctx,request) {
@@ -344,7 +365,8 @@
       if (kind === 'end' && result.refreshed && result.coverage?.gameEnded) ctx.autoEndDone = true;
       if (kind === 'start' && result.refreshed && ctx.lastLogTurn) ctx.autoStartDone = true;
       ctx.nextAutoAt = Date.now() + 6000;
-    }).catch(error => { ctx.captureNote = String(error.message || error); ctx.nextAutoAt = Date.now() + 6000; });
+    }).catch(error => { ctx.captureNoteParts=[part('observation-error','觀察失敗：{0}',String(error.message||error))];
+      ctx.captureNote=renderParts(ctx.captureNoteParts);ctx.nextAutoAt=Date.now()+6000; });
   }
   function interacted(event) {
     if (event.isTrusted === false) return;
@@ -368,7 +390,8 @@
       respond({connected:Boolean(ctx&&sameContext(ctx)),version:globalThis.MSARecorderCore?.VERSION || '',
         pageType:gameId()?'game':'lobby',engine:globalThis.MSADeckTrackerCore?.engineStatus?.() || {state:'unavailable'},
         ready,enabled:settings.enabled,gameId:gameId(),runId:ctx?.runId || '',playerName:ctx?.playerName || '',
-        pendingCount:ctx?.writer.state().pendingCount || 0,writeError:ctx?.writeError || (ctx?.connectionError?'記錄器連線中斷':''),quality:ctx?.lastQuality || 'unavailable',
+        pendingCount:ctx?.writer.state().pendingCount || 0,quarantinedCount:ctx?.quarantinedCount||0,recovery:ctx?.writer.state().recovery,
+        writeError:ctx?.writeError || (ctx?.connectionError?'記錄器連線中斷':''),quality:ctx?.lastQuality || 'unavailable',
         snapshotCount:ctx?.snapshotCount || 0,eventCount:ctx?.eventCount || 0,lastSavedAt:ctx?.lastSavedAt || '',
         publicLogComplete:Boolean(ctx?.coverage?.publicLogComplete),healthAlerts:ctx?.healthAlerts || []});
       return false;
@@ -394,7 +417,7 @@
   });
   reset(gameId());
   chrome.storage.local.get('msa.settings').then(values => { settings = {...defaults,...values['msa.settings']}; ready = true; sample(); })
-    .catch(error => publish(current,`無法讀取設定：${error.message}`));
+    .catch(error => publish(current,part('settings-error','無法讀取設定：{0}',error.message)));
   chrome.storage.onChanged.addListener((changes,area) => {
     if (area !== 'local' || !changes['msa.settings']) return;
     const next = {...defaults,...changes['msa.settings'].newValue};
