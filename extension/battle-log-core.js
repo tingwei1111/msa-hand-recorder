@@ -1,15 +1,24 @@
 (function (root, factory) {
   'use strict';
   var core = typeof module === 'object' && module.exports ? require('./recorder-core.js') : root.MSARecorderCore;
-  var api = factory(core);
+  var exportI18n = typeof module === 'object' && module.exports ? require('./export-i18n.js') : root.MSAExportI18n;
+  var api = factory(core, exportI18n);
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.MSABattleLogCore = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (core) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (core, exportI18n) {
   'use strict';
   if (!core) throw new Error('MSARecorderCore must be loaded before MSABattleLogCore.');
 
   function copy(value) { return value === undefined ? undefined : JSON.parse(JSON.stringify(value)); }
   function text(value) { return value === null || value === undefined ? '' : String(value); }
+  function sourceTemplate(source) {
+    var values = Array.prototype.slice.call(arguments, 1);
+    return source.replace(/\{(\d+)\}/g, function (token, index) { return index < values.length ? text(values[index]) : token; });
+  }
+  function reportLanguage(options) {
+    if (!exportI18n) throw new Error('MSAExportI18n must be loaded before exporting reports.');
+    return exportI18n.create(options && options.language);
+  }
   function nonnegative(value) { return Number.isSafeInteger(value) && value >= 0 ? value : null; }
   function compact(value) { return text(value).replace(/\s+/g, ' ').trim(); }
   function unique(values) { return Array.from(new Set(values.filter(Boolean))); }
@@ -344,14 +353,15 @@
     });
   }
 
-  function deltaDescription(observation) {
-    if (!observation || observation.deltaStatus === 'first-observation') return '首筆觀察，沒有可比較的前一筆。';
-    if (observation.deltaStatus === 'segment-boundary') return '不同來源段落，不跨段推算手牌差值。';
-    if (observation.deltaStatus !== 'compared' || !observation.delta) return '相鄰觀察含不完整或未知手牌，不推算差值。';
+  function deltaDescription(observation, report) {
+    var t = report && typeof report.t === 'function' ? report.t : sourceTemplate;
+    if (!observation || observation.deltaStatus === 'first-observation') return t('首筆觀察，沒有可比較的前一筆。');
+    if (observation.deltaStatus === 'segment-boundary') return t('不同來源段落，不跨段推算手牌差值。');
+    if (observation.deltaStatus !== 'compared' || !observation.delta) return t('相鄰觀察含不完整或未知手牌，不推算差值。');
     var added = observation.delta.added.map(function (card) { return card.cardCode + ' +' + card.count; });
     var removed = observation.delta.removed.map(function (card) { return card.cardCode + ' -' + card.count; });
-    if (!added.length && !removed.length) return '與前一筆完整觀察相比，卡號與數量未變。';
-    return '與前一筆完整觀察相比：' + added.concat(removed).join('、') + '。僅表示觀察數量差，進出原因未知。';
+    if (!added.length && !removed.length) return t('與前一筆完整觀察相比，卡號與數量未變。');
+    return t('與前一筆完整觀察相比：{0}。僅表示觀察數量差，進出原因未知。', added.concat(removed).join(t('、')));
   }
 
   function collectHandCaptureIssues(session) {
@@ -378,13 +388,12 @@
     return issues;
   }
 
-  function handCaptureIssueDescription(issue) {
-    return '手牌擷取缺口：來源段落 ' + text(issue.sourceSessionId || '未知') +
-      '；觀察時間 ' + text(issue.observedAt || '未知') +
-      '；代碼 ' + text(issue.code || '未知') +
-      (issue.pendingCount !== undefined ? '；待存觀察 ' + text(issue.pendingCount) + ' 筆' : '') +
-      (issue.reason ? '；' + text(issue.reason) : '；原因未提供') +
-      '。公開 Log 的完整性不能補回這段手牌觀察缺口。';
+  function handCaptureIssueDescription(issue, report) {
+    var t = report ? report.t : sourceTemplate;
+    return t('手牌擷取缺口：來源段落 {0}；觀察時間 {1}；代碼 {2}{3}；{4}。公開 Log 的完整性不能補回這段手牌觀察缺口。',
+      text(issue.sourceSessionId || t('未知')), text(issue.observedAt || t('未知')), text(issue.code || t('未知')),
+      issue.pendingCount !== undefined ? t('；待存觀察 {0} 筆', issue.pendingCount) : '',
+      issue.reason ? report ? report.knownReason(issue.reason) : text(issue.reason) : t('原因未提供'));
   }
 
   function buildTimeline(session) {
@@ -443,7 +452,7 @@
     var handCaptureIssues = collectHandCaptureIssues(session);
     return { players: players, turns: turns, unassignedEvents: unassignedEvents, unassignedSnapshots: unassignedSnapshots,
       coverage: copy(log.coverage), handCaptureIssues: handCaptureIssues,
-      warnings: copy(log.warnings || []).concat(handCaptureIssues.map(handCaptureIssueDescription)) };
+      warnings: copy(log.warnings || []).concat(handCaptureIssues.map(function (issue) { return handCaptureIssueDescription(issue); })) };
   }
 
   function combineSessions(sessions) {
@@ -559,25 +568,33 @@
     return text(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/([\\`*_{}\[\]()#+.!|~-])/g, '\\$1').replace(/\r?\n/g, ' ⏎ ');
   }
-  function handDescription(snapshot) {
-    if (!snapshot) return '未記錄；不可還原當時手牌。';
-    var known = (snapshot.hand || []).map(function (card) { return card.count + 'x' + card.cardCode; }).join('、');
-    if (!known && completeHand(snapshot)) known = '已觀察到空手';
-    if (snapshot.unknownCount) known += (known ? '；' : '') + '未辨識 ' + snapshot.unknownCount + ' 張';
-    if (snapshot.quality !== 'complete' && !snapshot.unknownCount) known += (known ? '；' : '') + '未知張數，並非確認空手';
-    if (!known) known = '沒有可確認卡號，不能視為空手';
-    return markdown(known) + '；品質 ' + markdown(snapshot.quality) + '；觀察時間 ' + markdown(snapshot.timestamp) +
-      '；回合來源 ' + markdown(snapshot.turnSource) + (snapshot.sourceSessionId ? '；記錄段落 ' + markdown(snapshot.sourceSessionId) : '') +
-      '；階段 ' + markdown(snapshot.phase || '未知') + '；' + markdown(resourceDescription(snapshot.resources)) +
-      (snapshot.reason ? '；原因 ' + markdown(snapshot.reason) : '');
+  function handDescription(snapshot, report) {
+    var t = report.t;
+    if (!snapshot) return t('未記錄；不可還原當時手牌。');
+    var known = (snapshot.hand || []).map(function (card) { return card.count + 'x' + card.cardCode; }).join(t('、'));
+    if (!known && completeHand(snapshot)) known = t('已觀察到空手');
+    if (snapshot.unknownCount) known += (known ? t('；') : '') + t('未辨識 {0} 張', snapshot.unknownCount);
+    if (snapshot.quality !== 'complete' && !snapshot.unknownCount) known += (known ? t('；') : '') + t('未知張數，並非確認空手');
+    if (!known) known = t('沒有可確認卡號，不能視為空手');
+    return markdown(t('{0}；品質 {1}；觀察時間 {2}；回合來源 {3}{4}；階段 {5}；{6}{7}', known,
+      snapshot.quality, snapshot.timestamp, snapshot.turnSource,
+      snapshot.sourceSessionId ? t('；記錄段落 {0}', snapshot.sourceSessionId) : '', snapshot.phase || t('未知'),
+      resourceDescription(snapshot.resources, report), snapshot.reason ? t('；原因 {0}', report.knownReason(snapshot.reason)) : ''));
   }
-  function resourceDescription(resources) {
-    if (typeof core.resourceText === 'function') return core.resourceText(resources);
-    return resources ? '資源等級 ' + text(resources.level) + '，一般可用 ' + text(resources.active) + '，EX 可用未知' : '資源未辨識';
+  function resourceDescription(resources, report) {
+    var t = report.t;
+    if (!resources) return t('資源未辨識');
+    function show(value) { return nonnegative(value) === null ? t('未知') : String(value); }
+    return t('等級 {0} · 一般可用 {1} · EX 可用 {2} · 合計 {3}',
+      show(resources.level), show(resources.active), show(resources.exActive), show(resources.totalActive));
   }
-  function eventLine(event) {
-    return '- [' + markdown(event.id) + '] ' + markdown(event.actor || '系統') + '：' + markdown(event.rawText) +
-      (event.cards.length ? ' ｜卡牌：' + markdown(cardList(event.cards)) : '');
+  function eventLine(event, report) {
+    return '- [' + markdown(event.id) + '] ' + report.t('{0}：{1}', markdown(event.actor || report.t('系統')), markdown(event.rawText)) +
+      (event.cards.length ? report.t(' ｜卡牌：{0}', markdown(cardList(event.cards))) : '');
+  }
+  function reportWarnings(session, timeline, report) {
+    return ((session.battleLog && session.battleLog.warnings) || []).map(report.knownReason)
+      .concat(timeline.handCaptureIssues.map(function (issue) { return handCaptureIssueDescription(issue, report); }));
   }
 
   function workspaceSummary(session, info) {
@@ -620,117 +637,123 @@
     }
     return result;
   }
-  function bookmarkTurn(note) {
+  function bookmarkTurn(note, report) {
+    var t = report.t;
     if (Number.isSafeInteger(note.turn) && note.turn > 0) {
-      if (note.turnSource === 'log') return 'Log 校準 · T' + note.turn;
-      if (note.turnSource === 'phase-observed') return '推計回合 · T' + note.turn;
+      if (note.turnSource === 'log') return t('Log 校準 · T{0}', note.turn);
+      if (note.turnSource === 'phase-observed') return t('推計回合 · T{0}', note.turn);
     }
-    return (Number.isSafeInteger(note.observedTurn) && note.observedTurn > 0 ? '觀察 ' + note.observedTurn + ' · ' : '') + '回合未校準';
+    return Number.isSafeInteger(note.observedTurn) && note.observedTurn > 0 ? t('觀察 {0} · 回合未校準', note.observedTurn) : t('回合未校準');
   }
-  function bookmarkAnchor(session, note) {
+  function bookmarkAnchor(session, note, report) {
+    var t = report.t;
     var present = (session.snapshots || []).some(function (snapshot) {
       return snapshot.id === note.snapshotId && (snapshot.sourceSessionId || session.id) === note.sourceSessionId;
     });
-    return '來源段落 ' + text(note.sourceSessionId) + ' · 來源快照 ' + text(note.snapshotId || '未標示') +
-      (present ? '' : '；來源快照未在本次匯出中，不改接其他回合。');
+    return t('來源段落 {0} · 來源快照 {1}{2}', text(note.sourceSessionId), text(note.snapshotId || t('未標示')),
+      present ? '' : t('；來源快照未在本次匯出中，不改接其他回合。'));
   }
-  function matchDescription(match) {
+  function matchDescription(match, report) {
+    var t = report.t;
     var results = {win:'勝',loss:'負',draw:'和局',concede:'本人投降（負）'};
     var orders = {first:'先手',second:'後手',unknown:'先後手未確認'};
-    return '人工確認結果：' + results[match.result] + ' · ' + (orders[match.firstPlayer] || orders.unknown) +
-      ' · 確認更新 ' + text(match.updatedAt || '時間未知') + '。這是整局人工記錄，不是依 Log 自動推定。';
+    return t('人工確認結果：{0} · {1} · 確認更新 {2}。這是整局人工記錄，不是依 Log 自動推定。',
+      t(results[match.result]), t(orders[match.firstPlayer] || orders.unknown), text(match.updatedAt || t('時間未知')));
   }
-  function deckDescription(deck) {
+  function deckDescription(deck, report) {
+    var t = report.t;
     function total(rows) {
-      if (!Array.isArray(rows) || rows.some(function (row) { return !row || !Number.isSafeInteger(row.count) || row.count < 1; })) return '未知';
+      if (!Array.isArray(rows) || rows.some(function (row) { return !row || !Number.isSafeInteger(row.count) || row.count < 1; })) return t('未知');
       var sum = rows.reduce(function (amount,row) { return amount + row.count; },0);
-      return Number.isSafeInteger(sum) ? sum + ' 張' : '未知';
+      return Number.isSafeInteger(sum) ? t('{0} 張', sum) : t('未知');
     }
-    return '牌組：' + text(deck.name || '未命名') + ' · 版本 ' + text(deck.id) +
-      ' · 主牌 ' + total(deck.main) + ' · 資源 ' + total(deck.resources) + ' · Token ' + total(deck.tokens) +
-      ' · 內容識別 ' + text(deck.contentHash || '未提供') + '。此摘要不驗證賽制合法性。';
+    return t('牌組：{0} · 版本 {1} · 主牌 {2} · 資源 {3} · Token {4} · 內容識別 {5}。此摘要不驗證賽制合法性。',
+      text(deck.name || t('未命名')), text(deck.id), total(deck.main), total(deck.resources), total(deck.tokens), text(deck.contentHash || t('未提供')));
   }
-  function workspaceMarkdown(session, summary) {
-    var lines = ['', '## 書籤與筆記', '', '- 僅顯示本玩家、本次來源段落的有效筆記；已刪除筆記不列在閱讀內容。', ''];
-    if (!summary.notes.length) lines.push('- ' + (summary.identityConfirmed ? '本次來源段落沒有有效筆記。' : '玩家身分或來源段落未確認，不顯示筆記。'));
+  function workspaceMarkdown(session, summary, report) {
+    var t = report.t;
+    var lines = ['', '## ' + t('書籤與筆記'), '', '- ' + t('僅顯示本玩家、本次來源段落的有效筆記；已刪除筆記不列在閱讀內容。'), ''];
+    if (!summary.notes.length) lines.push('- ' + t(summary.identityConfirmed ? '本次來源段落沒有有效筆記。' : '玩家身分或來源段落未確認，不顯示筆記。'));
     summary.notes.forEach(function (note) {
-      lines.push('### ' + markdown(note.tag || '未設標籤'), '', '- ' + markdown(bookmarkTurn(note)),
-        '- ' + markdown(bookmarkAnchor(session,note)), '- 建立 ' + markdown(note.createdAt || '時間未知') +
-        ' · 更新 ' + markdown(note.updatedAt || '時間未知'), '', markdown(note.note || '（未填寫筆記）'), '');
+      lines.push('### ' + markdown(note.tag || t('未設標籤')), '', '- ' + markdown(bookmarkTurn(note, report)),
+        '- ' + markdown(bookmarkAnchor(session,note,report)), '- ' + markdown(t('建立 {0} · 更新 {1}',
+          note.createdAt || t('時間未知'), note.updatedAt || t('時間未知'))), '', markdown(note.note || t('（未填寫筆記）')), '');
     });
-    lines.push('', '## 人工戰績與牌組', '');
-    if (!summary.match) lines.push('- 尚無本玩家可顯示的最新人工確認結果；不從公開事件猜測勝負。');
+    lines.push('', '## ' + t('人工戰績與牌組'), '');
+    if (!summary.match) lines.push('- ' + t('尚無本玩家可顯示的最新人工確認結果；不從公開事件猜測勝負。'));
     else {
-      lines.push('- ' + markdown(matchDescription(summary.match)), '- 結果來源段落：' + markdown(summary.match.sourceSessionId || '未標示'));
-      lines.push('- ' + (summary.deck ? markdown(deckDescription(summary.deck)) : '未提供可核對的綁定牌組版本。'));
+      lines.push('- ' + markdown(matchDescription(summary.match,report)), '- ' + t('結果來源段落：{0}', markdown(summary.match.sourceSessionId || t('未標示'))));
+      lines.push('- ' + (summary.deck ? markdown(deckDescription(summary.deck,report)) : t('未提供可核對的綁定牌組版本。')));
     }
     return lines;
   }
-  function workspaceHTML(session, summary) {
-    var parts = ['<section class="turn" data-workspace-section="notes"><h2>書籤與筆記</h2><p class="meta">僅顯示本玩家、本次來源段落的有效筆記；已刪除筆記只保留於匯出資訊原始資料。</p>'];
-    if (!summary.notes.length) parts.push('<p>' + (summary.identityConfirmed ? '本次來源段落沒有有效筆記。' : '玩家身分或來源段落未確認，不顯示筆記。') + '</p>');
+  function workspaceHTML(session, summary, report) {
+    var t = report.t;
+    var parts = ['<section class="turn" data-workspace-section="notes"><h2>' + html(t('書籤與筆記')) + '</h2><p class="meta">' + html(t('僅顯示本玩家、本次來源段落的有效筆記；已刪除筆記只保留於匯出資訊原始資料。')) + '</p>'];
+    if (!summary.notes.length) parts.push('<p>' + html(t(summary.identityConfirmed ? '本次來源段落沒有有效筆記。' : '玩家身分或來源段落未確認，不顯示筆記。')) + '</p>');
     summary.notes.forEach(function (note) {
-      parts.push('<article class="snapshot" data-note-id="' + html(note.id) + '"><h3>' + html(note.tag || '未設標籤') + '</h3>' +
-        '<p class="meta">' + html(bookmarkTurn(note)) + '</p><p class="meta">' + html(bookmarkAnchor(session,note)) +
-        '</p><p class="meta">建立 ' + html(note.createdAt || '時間未知') + ' · 更新 ' + html(note.updatedAt || '時間未知') +
-        '</p><pre>' + html(note.note || '（未填寫筆記）') + '</pre></article>');
+      parts.push('<article class="snapshot" data-note-id="' + html(note.id) + '"><h3>' + html(note.tag || t('未設標籤')) + '</h3>' +
+        '<p class="meta">' + html(bookmarkTurn(note,report)) + '</p><p class="meta">' + html(bookmarkAnchor(session,note,report)) +
+        '</p><p class="meta">' + html(t('建立 {0} · 更新 {1}', note.createdAt || t('時間未知'), note.updatedAt || t('時間未知'))) +
+        '</p><pre>' + html(note.note || t('（未填寫筆記）')) + '</pre></article>');
     });
-    parts.push('</section><section class="turn" data-workspace-section="match"><h2>人工戰績與牌組</h2>');
-    if (!summary.match) parts.push('<p>尚無本玩家可顯示的最新人工確認結果；不從公開事件猜測勝負。</p>');
+    parts.push('</section><section class="turn" data-workspace-section="match"><h2>' + html(t('人工戰績與牌組')) + '</h2>');
+    if (!summary.match) parts.push('<p>' + html(t('尚無本玩家可顯示的最新人工確認結果；不從公開事件猜測勝負。')) + '</p>');
     else {
-      parts.push('<p>' + html(matchDescription(summary.match)) + '</p><p class="meta">結果來源段落：' + html(summary.match.sourceSessionId || '未標示') + '</p>',
-        '<p>' + (summary.deck ? html(deckDescription(summary.deck)) : '未提供可核對的綁定牌組版本。') + '</p>');
+      parts.push('<p>' + html(matchDescription(summary.match,report)) + '</p><p class="meta">' + html(t('結果來源段落：{0}', summary.match.sourceSessionId || t('未標示'))) + '</p>',
+        '<p>' + html(summary.deck ? deckDescription(summary.deck,report) : t('未提供可核對的綁定牌組版本。')) + '</p>');
     }
     parts.push('</section>'); return parts.join('\n');
   }
 
   function toMarkdown(session, options) {
     options = options || {};
+    var report = reportLanguage(options), t = report.t;
     var timeline = buildTimeline(session);
-    var lines = ['# MSA 對局分析資料', '', '- 對局：' + markdown(session.gameId), '- 我的玩家名稱：' + markdown(session.playerName),
-      '- 公開紀錄：' + (timeline.coverage.publicLogComplete ? '已觀察到 Game started 至 Game ended 的連續公開紀錄。' : '部分或仍在進行；請確認 coverage 與擷取警告。'),
-      '- 手牌首末代表該回合「第一次／最後一次觀察」，不保證是真正回合開始／結束手牌。',
-      '- 公開事件的 capturedAt 是擷取時間，不是事件發生時間；不把手牌數量差推論成出牌、抽牌或棄牌。',
-      '- 公開部署／使用事件未必來自手牌；token 生成不列為手牌出牌。對手隱藏手牌未知。', ''];
+    var lines = ['# ' + t('MSA 對局分析資料'), '', '- ' + t('對局：{0}', markdown(session.gameId)), '- ' + t('我的玩家名稱：{0}', markdown(session.playerName)),
+      '- ' + t('公開紀錄：{0}', t(timeline.coverage.publicLogComplete ? '已觀察到 Game started 至 Game ended 的連續公開紀錄。' : '部分或仍在進行；請確認 coverage 與擷取警告。')),
+      '- ' + t('手牌首末代表該回合「第一次／最後一次觀察」，不保證是真正回合開始／結束手牌。'),
+      '- ' + t('公開事件的 capturedAt 是擷取時間，不是事件發生時間；不把手牌數量差推論成出牌、抽牌或棄牌。'),
+      '- ' + t('公開部署／使用事件未必來自手牌；token 生成不列為手牌出牌。對手隱藏手牌未知。'), ''];
     if (options.exportInfo) {
-      lines.push('- 匯出前刷新：' + markdown(refreshDescription(options.exportInfo)),
-        '- 匯出時間：' + markdown(options.exportInfo.exportedAt || '未標示'), '');
+      lines.push('- ' + t('匯出前刷新：{0}', markdown(refreshDescription(options.exportInfo,report))),
+        '- ' + t('匯出時間：{0}', markdown(options.exportInfo.exportedAt || t('未標示'))), '');
       if (Object.prototype.hasOwnProperty.call(options.exportInfo,'workspaceRecords')) {
-        lines.push.apply(lines,workspaceMarkdown(session,workspaceSummary(session,options.exportInfo)));
+        lines.push.apply(lines,workspaceMarkdown(session,workspaceSummary(session,options.exportInfo),report));
       }
     }
-    timeline.warnings.forEach(function (warning) { lines.push('- 警告：' + markdown(warning)); });
+    reportWarnings(session,timeline,report).forEach(function (warning) { lines.push('- ' + t('警告：{0}', markdown(warning))); });
     if (timeline.handCaptureIssues.length) {
-      lines.push('', '## 手牌擷取缺口', '', '以下缺口獨立於公開 Log 涵蓋狀態；即使公開 Log 已見完整起尾，未存入的手牌觀察仍不可還原。', '');
+      lines.push('', '## ' + t('手牌擷取缺口'), '', t('以下缺口獨立於公開 Log 涵蓋狀態；即使公開 Log 已見完整起尾，未存入的手牌觀察仍不可還原。'), '');
       timeline.handCaptureIssues.forEach(function (issue) {
-        lines.push('- ' + markdown(handCaptureIssueDescription(issue)), '- 原始欄位：' + markdown(JSON.stringify(issue)), '');
+        lines.push('- ' + markdown(handCaptureIssueDescription(issue,report)), '- ' + t('原始欄位：{0}', markdown(JSON.stringify(issue))), '');
       });
     }
     if (timeline.unassignedEvents.length) {
-      lines.push('', '## 開局或無法歸屬回合的公開事件', '');
-      timeline.unassignedEvents.forEach(function (event) { lines.push(eventLine(event)); });
+      lines.push('', '## ' + t('開局或無法歸屬回合的公開事件'), '');
+      timeline.unassignedEvents.forEach(function (event) { lines.push(eventLine(event,report)); });
     }
     timeline.turns.forEach(function (turn) {
-      lines.push('', '## ' + (turn.turn === null ? '觀察回合 ' + turn.observedTurn + '（未對齊絕對回合）' :
-        (turn.turnSource === 'phase-observed' && !turn.events.length ? '推計第 ' : '第 ') + turn.turn + ' 回合'), '',
-        '- 行動方：' + markdown(turn.activePlayer || '未知') + '（' + markdown(turn.activePlayerSource) + '）',
-        '- 手牌對齊：' + markdown(turn.handFlags.turnAlignment) + '；觀察數：' + turn.snapshotCount,
-        '- 首次手牌觀察：' + handDescription(turn.first), '- 最後手牌觀察：' + handDescription(turn.last), '', '### 全部手牌快照', '');
-      if (!turn.observations.length) lines.push('- 未記錄手牌快照，不代表空手。');
+      lines.push('', '## ' + (turn.turn === null ? t('觀察回合 {0}（未對齊絕對回合）', markdown(turn.observedTurn)) :
+        t(turn.turnSource === 'phase-observed' && !turn.events.length ? '推計第 {0} 回合' : '第 {0} 回合', markdown(turn.turn))), '',
+        '- ' + t('行動方：{0}（{1}）', markdown(turn.activePlayer || t('未知')), markdown(turn.activePlayerSource)),
+        '- ' + t('手牌對齊：{0}；觀察數：{1}', markdown(turn.handFlags.turnAlignment), turn.snapshotCount),
+        '- ' + t('首次手牌觀察：{0}', handDescription(turn.first,report)), '- ' + t('最後手牌觀察：{0}', handDescription(turn.last,report)), '', '### ' + t('全部手牌快照'), '');
+      if (!turn.observations.length) lines.push('- ' + t('未記錄手牌快照，不代表空手。'));
       turn.observations.forEach(function (observation) {
-        lines.push('#### 手牌快照 ' + observation.index + '：' + markdown(observation.snapshot.id || '無 ID'), '',
-          '- ' + handDescription(observation.snapshot), '- 快照差值：' + markdown(deltaDescription(observation)), '');
+        lines.push('#### ' + t('手牌快照 {0}：{1}', observation.index, markdown(observation.snapshot.id || t('無 ID'))), '',
+          '- ' + handDescription(observation.snapshot,report), '- ' + t('快照差值：{0}', markdown(deltaDescription(observation,report))), '');
       });
-      lines.push('### 公開事件', '');
-      if (!turn.events.length) lines.push('- 未取得可對齊的公開事件。');
-      turn.events.forEach(function (event) { lines.push(eventLine(event)); });
+      lines.push('### ' + t('公開事件'), '');
+      if (!turn.events.length) lines.push('- ' + t('未取得可對齊的公開事件。'));
+      turn.events.forEach(function (event) { lines.push(eventLine(event,report)); });
     });
     var unmerged = ((session.battleLog && session.battleLog.captures) || []).filter(function (capture) { return capture.rows; });
     if (unmerged.length) {
-      lines.push('', '## 未合併擷取原文（先後次序待確認）', '');
+      lines.push('', '## ' + t('未合併擷取原文（先後次序待確認）'), '');
       unmerged.forEach(function (capture) {
-        lines.push('### ' + markdown(capture.id), '', '- 擷取時間：' + markdown(capture.observedAt), '- 原因：' + markdown(capture.warning), '');
-        capture.rows.forEach(function (row) { lines.push('- ' + markdown(row.actor || '系統') + '：' + markdown(row.text)); });
+        lines.push('### ' + markdown(capture.id), '', '- ' + t('擷取時間：{0}', markdown(capture.observedAt)), '- ' + t('原因：{0}', markdown(report.knownReason(capture.warning))), '');
+        capture.rows.forEach(function (row) { lines.push('- ' + t('{0}：{1}', markdown(row.actor || t('系統')), markdown(row.text))); });
       });
     }
     return lines.join('\n') + '\n';
@@ -746,15 +769,18 @@
     return text(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
-  function refreshDescription(info) {
+  function refreshDescription(info, report) {
+    var t = report.t;
     var refresh = info && info.refresh;
-    if (!refresh) return '此匯出未提供刷新結果；只保留當時已儲存資料。';
-    return (refresh.refreshed ? (refresh.partial ? '已刷新，但仍有部分資料未確認' : '已完成匯出前刷新') : '未能確認刷新，匯出既有資料') +
-      (refresh.reason ? '：' + text(refresh.reason) : '') + '。刷新成功也不表示所有歷史手牌均已記錄。';
+    if (!refresh) return t('此匯出未提供刷新結果；只保留當時已儲存資料。');
+    return t('{0}{1}。刷新成功也不表示所有歷史手牌均已記錄。',
+      t(refresh.refreshed ? (refresh.partial ? '已刷新，但仍有部分資料未確認' : '已完成匯出前刷新') : '未能確認刷新，匯出既有資料'),
+      refresh.reason ? t('：{0}', report.knownReason(refresh.reason)) : '');
   }
 
   function toHTML(session, options) {
     options = options || {};
+    var report = reportLanguage(options), t = report.t;
     var timeline = buildTimeline(session);
     var info = copy(options.exportInfo || {});
     var workspace = null;
@@ -765,72 +791,72 @@
       info.workspaceRecords = workspace.records;
     }
     if (!info.exportedAt) info.exportedAt = new Date().toISOString();
-    var parts = ['<!doctype html><html lang="zh-Hant"><head><meta charset="UTF-8">',
-      '<meta name="viewport" content="width=device-width, initial-scale=1"><title>MSA 完整觀察紀錄</title>',
-      '<style>body{max-width:1120px;margin:32px auto;padding:0 22px;background:#f3f6f8;color:#203b4d;font:14px/1.6 system-ui,sans-serif}h1{font-size:28px}h2{margin-bottom:4px}h3{font-size:17px}.turn{border-top:2px solid #a4c7c5;margin-top:30px;padding-top:18px}.snapshot,.event{background:white;border:1px solid #d5e1e7;border-radius:8px;padding:14px 18px;margin:12px 0}.snapshot h4{margin:0}.meta{color:#587283;font-size:12px;overflow-wrap:anywhere}.note{background:#fff3db;padding:12px;border-radius:6px}.cards{display:flex;gap:8px 16px;flex-wrap:wrap;padding:0;list-style:none}.cards li{font-family:monospace}.delta{font-size:12px;color:#506758}.quality{font-size:12px;font-weight:600}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}details{margin-top:24px}summary{cursor:pointer}footer{margin-top:30px;font-size:12px;color:#627785}@media print{body{background:white;margin:0}.snapshot,.event{break-inside:avoid}}</style></head><body>',
-      '<h1>MSA 完整觀察紀錄</h1><p>對局 ' + html(session.gameId) + ' · 玩家 ' + html(session.playerName || '未辨識') + '</p>',
-      '<p class="meta">匯出 ' + html(info.exportedAt) + ' · 手牌快照 ' + (session.snapshots || []).length +
-      ' 筆 · 公開事件 ' + ((session.battleLog && session.battleLog.events) || []).length + ' 筆</p>',
-      '<p class="note">' + html(refreshDescription(info)) + '</p>',
-      '<p class="note">' + (timeline.coverage.publicLogComplete ? '已見開局與結束，未標出已知公開紀錄缺口。' : '公開紀錄仍有缺口或未見完整起尾，不能稱為整場完整。') +
-      ' 每筆手牌皆是觀察，不能保證捕捉了每次變動；最早／最晚不等於真正回合起訖。數量差不代表已確認的抽牌、出牌或棄牌。</p>'];
-    if (workspace) parts.push(workspaceHTML(session,workspace));
-    timeline.warnings.forEach(function (warning) { parts.push('<p class="note">' + html(warning) + '</p>'); });
+    var parts = ['<!doctype html><html lang="' + report.htmlLanguage + '"><head><meta charset="UTF-8">',
+      '<meta name="viewport" content="width=device-width, initial-scale=1"><title>' + html(t('MSA 完整觀察紀錄')) + '</title>',
+      '<style>:root{color-scheme:dark;--paper:#111;--ink:#f0f0f0;--muted:#aaa;--line:#383838;--warning:#dfba7c}*{box-sizing:border-box}body{max-width:920px;margin:64px auto;padding:0 28px;background:var(--paper);color:var(--ink);font:14px/1.8 system-ui,sans-serif;-webkit-font-smoothing:antialiased}h1,h2,h3,h4{font-weight:400;line-height:1.4;overflow-wrap:anywhere}h1{font-size:34px;letter-spacing:-.035em;margin-bottom:24px}h2{font-size:25px;margin-bottom:8px}h3{font-size:18px}.turn{border-top:1px solid var(--line);margin-top:48px;padding-top:28px}.snapshot,.event{border:0;border-top:1px solid var(--line);padding:20px 0;margin:22px 0}.snapshot h4{margin:0}.meta{color:var(--muted);font:11px/1.9 ui-monospace,monospace;overflow-wrap:anywhere}.note{color:var(--warning);border-left:1px solid var(--warning);padding:2px 0 2px 16px;margin:20px 0;font-size:13px}.cards{display:flex;gap:8px 20px;flex-wrap:wrap;padding:0;list-style:none}.cards li{font-family:ui-monospace,monospace}.delta{font-size:12px;color:var(--muted)}.quality{font-size:12px;font-weight:400}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.8 ui-monospace,monospace}p,li{overflow-wrap:anywhere}details{margin-top:28px}summary{cursor:pointer;color:var(--muted)}summary:focus-visible{outline:2px solid var(--ink);outline-offset:4px}footer{border-top:1px solid var(--line);margin-top:48px;padding-top:24px;font-size:12px;color:var(--muted)}@media(max-width:600px){body{margin:32px auto;padding:0 20px}h1{font-size:28px}.turn{margin-top:36px;padding-top:22px}}@media print{:root{color-scheme:light;--paper:#fff;--ink:#111;--muted:#555;--line:#ccc;--warning:#79500c}body{background:white;margin:0;padding:0;max-width:none}.snapshot,.event{break-inside:avoid}}</style></head><body>',
+      '<h1>' + html(t('MSA 完整觀察紀錄')) + '</h1><p>' + html(t('對局 {0} · 玩家 {1}', session.gameId, session.playerName || t('未辨識'))) + '</p>',
+      '<p class="meta">' + html(t('匯出 {0} · 手牌快照 {1} 筆 · 公開事件 {2} 筆', info.exportedAt, (session.snapshots || []).length,
+        ((session.battleLog && session.battleLog.events) || []).length)) + '</p>',
+      '<p class="note">' + html(refreshDescription(info,report)) + '</p>',
+      '<p class="note">' + html(t(timeline.coverage.publicLogComplete ? '已見開局與結束，未標出已知公開紀錄缺口。' : '公開紀錄仍有缺口或未見完整起尾，不能稱為整場完整。')) +
+      html(t(' 每筆手牌皆是觀察，不能保證捕捉了每次變動；最早／最晚不等於真正回合起訖。數量差不代表已確認的抽牌、出牌或棄牌。')) + '</p>'];
+    if (workspace) parts.push(workspaceHTML(session,workspace,report));
+    reportWarnings(session,timeline,report).forEach(function (warning) { parts.push('<p class="note">' + html(warning) + '</p>'); });
     if (timeline.handCaptureIssues.length) {
-      parts.push('<section class="turn"><h2>手牌擷取缺口</h2><p>以下缺口獨立於公開 Log 涵蓋狀態；公開 Log 完整也不能補回未存入的手牌觀察。</p>');
+      parts.push('<section class="turn"><h2>' + html(t('手牌擷取缺口')) + '</h2><p>' + html(t('以下缺口獨立於公開 Log 涵蓋狀態；公開 Log 完整也不能補回未存入的手牌觀察。')) + '</p>');
       timeline.handCaptureIssues.forEach(function (issue) {
-        parts.push('<article class="note"><p>' + html(handCaptureIssueDescription(issue)) +
-          '</p><details><summary>缺口原始欄位</summary><pre>' + html(JSON.stringify(issue, null, 2)) + '</pre></details></article>');
+        parts.push('<article class="note"><p>' + html(handCaptureIssueDescription(issue,report)) +
+          '</p><details><summary>' + html(t('缺口原始欄位')) + '</summary><pre>' + html(JSON.stringify(issue, null, 2)) + '</pre></details></article>');
       });
       parts.push('</section>');
     }
     function renderEvents(events) {
-      if (!events.length) { parts.push('<p class="meta">未取得可對齊的公開事件；不代表沒有行動。</p>'); return; }
+      if (!events.length) { parts.push('<p class="meta">' + html(t('未取得可對齊的公開事件；不代表沒有行動。')) + '</p>'); return; }
       events.forEach(function (event) {
         parts.push('<article class="event" data-event-id="' + html(event.id) + '"><p class="meta">' + html(event.id) +
-          ' · ' + html(event.actor || '玩家未標示') + ' · ' + html(event.action) + '</p><pre>' + html(event.rawText) + '</pre>' +
+          ' · ' + html(event.actor || t('玩家未標示')) + ' · ' + html(event.action) + '</p><pre>' + html(event.rawText) + '</pre>' +
           (event.cards && event.cards.length ? '<p class="meta">' + html(cardList(event.cards)) + '</p>' : '') +
-          '<p class="meta">首次擷取 ' + html(event.capturedAt || '未知') + '；不是事件發生時間</p></article>');
+          '<p class="meta">' + html(t('首次擷取 {0}；不是事件發生時間', event.capturedAt || t('未知'))) + '</p></article>');
       });
     }
     if (timeline.unassignedEvents.length) {
-      parts.push('<section class="turn"><h2>開局前／未標回合事件</h2>');
+      parts.push('<section class="turn"><h2>' + html(t('開局前／未標回合事件')) + '</h2>');
       renderEvents(timeline.unassignedEvents); parts.push('</section>');
     }
     timeline.turns.forEach(function (turn) {
-      parts.push('<section class="turn"><h2>' + (turn.turn === null ? '觀察回合 ' + html(turn.observedTurn) + '（未校準）' :
-        (turn.turnSource === 'phase-observed' && !turn.events.length ? '推計第 ' : '第 ') + html(turn.turn) + ' 回合') +
-        '</h2><p class="meta">行動方：' + html(turn.activePlayer || '未知') + ' · 來源 ' + html(turn.activePlayerSource) +
-        ' · ' + turn.snapshotCount + ' 筆手牌觀察</p><h3>全部手牌快照</h3>');
-      if (!turn.observations.length) parts.push('<p class="meta">未觀察到手牌，不代表空手。</p>');
+      parts.push('<section class="turn"><h2>' + html(turn.turn === null ? t('觀察回合 {0}（未校準）', turn.observedTurn) :
+        t(turn.turnSource === 'phase-observed' && !turn.events.length ? '推計第 {0} 回合' : '第 {0} 回合', turn.turn)) +
+        '</h2><p class="meta">' + html(t('行動方：{0} · 來源 {1} · {2} 筆手牌觀察', turn.activePlayer || t('未知'), turn.activePlayerSource,
+        turn.snapshotCount)) + '</p><h3>' + html(t('全部手牌快照')) + '</h3>');
+      if (!turn.observations.length) parts.push('<p class="meta">' + html(t('未觀察到手牌，不代表空手。')) + '</p>');
       turn.observations.forEach(function (observation) {
         var snapshot = observation.snapshot;
         var known = (snapshot.hand || []).reduce(function (sum, card) { return sum + (Number(card.count) || 0); }, 0);
-        parts.push('<article class="snapshot" data-snapshot-id="' + html(snapshot.id || '') + '"><h4>手牌快照 ' + observation.index + '</h4>' +
-          '<p class="meta">' + html(snapshot.id || '無 ID') + ' · ' + html(snapshot.timestamp || '時間未知') + '</p>' +
-          '<p class="meta">回合 ' + html(snapshot.turn === null || snapshot.turn === undefined ? '未確認' : snapshot.turn) +
-          ' · 回合來源 ' + html(snapshot.turnSource || 'unknown') + ' · 觀察回合 ' + html(snapshot.observedTurn) +
-          ' · 階段 ' + html(snapshot.phase || '未知') + ' · 來源段落 ' + html(snapshot.sourceSessionId || session.id) + '</p>' +
-          '<p class="quality">品質 ' + html(snapshot.quality || 'unavailable') + ' · 已辨識 ' + known +
-          ' · 預期 ' + html(snapshot.expectedCount === null || snapshot.expectedCount === undefined ? '未知' : snapshot.expectedCount) +
-          ' · 未辨識 ' + html(snapshot.unknownCount === null || snapshot.unknownCount === undefined ? '未知' : snapshot.unknownCount) + '</p><ul class="cards">');
+        parts.push('<article class="snapshot" data-snapshot-id="' + html(snapshot.id || '') + '"><h4>' + html(t('手牌快照 {0}', observation.index)) + '</h4>' +
+          '<p class="meta">' + html(snapshot.id || t('無 ID')) + ' · ' + html(snapshot.timestamp || t('時間未知')) + '</p>' +
+          '<p class="meta">' + html(t('回合 {0} · 回合來源 {1} · 觀察回合 {2} · 階段 {3} · 來源段落 {4}',
+            snapshot.turn === null || snapshot.turn === undefined ? t('未確認') : snapshot.turn,
+            snapshot.turnSource || 'unknown', snapshot.observedTurn, snapshot.phase || t('未知'), snapshot.sourceSessionId || session.id)) + '</p>' +
+          '<p class="quality">' + html(t('品質 {0} · 已辨識 {1} · 預期 {2} · 未辨識 {3}', snapshot.quality || 'unavailable', known,
+            snapshot.expectedCount === null || snapshot.expectedCount === undefined ? t('未知') : snapshot.expectedCount,
+            snapshot.unknownCount === null || snapshot.unknownCount === undefined ? t('未知') : snapshot.unknownCount)) + '</p><ul class="cards">');
         (snapshot.hand || []).forEach(function (card) { parts.push('<li>' + html(card.cardCode) + ' × ' + html(card.count) + '</li>'); });
         parts.push('</ul>');
-        if (!(snapshot.hand || []).length) parts.push('<p>' + (completeHand(snapshot) ? '已觀察到空手。' : '沒有可確認卡號，不能視為空手。') + '</p>');
-        parts.push('<p class="meta">' + html(resourceDescription(snapshot.resources)) + '</p><p class="delta">快照差值：' + html(deltaDescription(observation)) + '</p>');
-        if (snapshot.reason) parts.push('<p class="meta">辨識原因：' + html(snapshot.reason) + '</p>');
+        if (!(snapshot.hand || []).length) parts.push('<p>' + html(t(completeHand(snapshot) ? '已觀察到空手。' : '沒有可確認卡號，不能視為空手。')) + '</p>');
+        parts.push('<p class="meta">' + html(resourceDescription(snapshot.resources,report)) + '</p><p class="delta">' + html(t('快照差值：{0}', deltaDescription(observation,report))) + '</p>');
+        if (snapshot.reason) parts.push('<p class="meta">' + html(t('辨識原因：{0}', report.knownReason(snapshot.reason))) + '</p>');
         parts.push('</article>');
       });
-      parts.push('<h3>雙方公開事件與原文</h3>'); renderEvents(turn.events); parts.push('</section>');
+      parts.push('<h3>' + html(t('雙方公開事件與原文')) + '</h3>'); renderEvents(turn.events); parts.push('</section>');
     });
     var conflicts = ((session.battleLog && session.battleLog.captures) || []).filter(function (capture) { return capture.rows; });
     if (conflicts.length) {
-      parts.push('<section class="turn"><h2>未合併擷取原文（先後順序待確認）</h2>');
+      parts.push('<section class="turn"><h2>' + html(t('未合併擷取原文（先後順序待確認）')) + '</h2>');
       conflicts.forEach(function (capture) { parts.push('<details open><summary>' + html(capture.id) + '</summary><pre>' + html(JSON.stringify(capture, null, 2)) + '</pre></details>'); });
       parts.push('</section>');
     }
-    parts.push('<details><summary>完整原始資料 JSON（全部快照、Battle Log 與原有欄位）</summary><pre>' + html(JSON.stringify(session, null, 2)) + '</pre></details>',
-      '<footer>此報告只保留已觀察與已擷取的內容，不補造未記錄手牌。下方非執行型 JSON 可供工具重新讀取；原始資料位於 msa-record-data，匯出資訊位於 msa-export-info。</footer>',
+    parts.push('<details><summary>' + html(t('完整原始資料 JSON（全部快照、Battle Log 與原有欄位）')) + '</summary><pre>' + html(JSON.stringify(session, null, 2)) + '</pre></details>',
+      '<footer>' + html(t('此報告只保留已觀察與已擷取的內容，不補造未記錄手牌。下方非執行型 JSON 可供工具重新讀取；原始資料位於 msa-record-data，匯出資訊位於 msa-export-info。')) + '</footer>',
       '<script id="msa-record-data" type="application/json">' + serializeForHTML(session) + '</script>',
       '<script id="msa-export-info" type="application/json">' + serializeForHTML(info) + '</script>', '</body></html>');
     return parts.join('\n');

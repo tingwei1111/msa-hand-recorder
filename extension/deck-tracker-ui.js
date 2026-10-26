@@ -40,55 +40,55 @@
     element.dataset.role = 'deck-tracker'; element.setAttribute('aria-label', l10n('本場牌組與公開卡牌追蹤'));
     const style = node('style');
     style.textContent = `
-      .msa-deck-tracker { min-width:0; color:#e7edf7; font:inherit; }
+      .msa-deck-tracker { min-width:0; color:#f0f0f0; font:inherit; }
       .msa-deck-tracker [hidden] { display:none!important; }
       .msa-deck-tracker *, .msa-deck-tracker *::before, .msa-deck-tracker *::after { box-sizing:border-box; }
       .msa-deck-tracker p, .msa-deck-tracker h3, .msa-deck-tracker h4 { margin:0; }
       .msa-deck-tracker button, .msa-deck-tracker select { font:inherit; color:inherit; }
       .msa-deck-tracker button { cursor:pointer; }
       .msa-deck-tracker button:disabled { cursor:default; opacity:.5; }
-      .msa-deck-tracker button:focus-visible, .msa-deck-tracker select:focus-visible, .msa-deck-tracker summary:focus-visible { outline:3px solid #8ae8d1; outline-offset:2px; }
+      .msa-deck-tracker button:focus-visible, .msa-deck-tracker select:focus-visible, .msa-deck-tracker summary:focus-visible { outline:3px solid #eee; outline-offset:2px; }
       .msa-deck-tracker .dt-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; margin-bottom:7px; }
       .msa-deck-tracker .dt-identity { min-width:0; }
       .msa-deck-tracker .dt-name { font-size:1.0833em; line-height:1.4; overflow-wrap:anywhere; }
-      .msa-deck-tracker .dt-meta { font-size:.8333em; color:#9cafc6; margin-top:3px; overflow-wrap:anywhere; }
-      .msa-deck-tracker .dt-manage { flex-shrink:0; padding:4px 7px; min-height:28px; border:1px solid #344c62; border-radius:6px; background:#192a3d; font-size:.8333em; }
-      .msa-deck-tracker .dt-stats { display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 9px; padding:8px 9px; margin-bottom:9px; background:#213a47; border-radius:7px; }
-      .msa-deck-tracker .dt-rate { font-size:1.4167em; font-weight:750; color:#7be2c8; line-height:1.2; }
-      .msa-deck-tracker .dt-stat-detail { font-size:.8333em; line-height:1.6; color:#a3c5b9; }
+      .msa-deck-tracker .dt-meta { font-size:.8333em; color:#a0a0a0; margin-top:3px; overflow-wrap:anywhere; }
+      .msa-deck-tracker .dt-manage { flex-shrink:0; padding:4px 7px; min-height:28px; border:1px solid #444; border-radius:4px; background:#191919; font-size:.8333em; }
+      .msa-deck-tracker .dt-stats { display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 9px; padding:8px 9px; margin-bottom:9px; background:#252525; border-radius:4px; }
+      .msa-deck-tracker .dt-rate { font-size:1.4167em; font-weight:500; color:#ddd; line-height:1.2; }
+      .msa-deck-tracker .dt-stat-detail { font-size:.8333em; line-height:1.6; color:#aaa; }
       .msa-deck-tracker .dt-state, .msa-deck-tracker .dt-status { font-size:.8333em; line-height:1.6; margin:7px 0; overflow-wrap:anywhere; }
-      .msa-deck-tracker .dt-status { border-left:3px solid #7be2c8; padding:6px 8px; background:#213a47; border-radius:4px; }
+      .msa-deck-tracker .dt-status { border-left:3px solid #ddd; padding:6px 8px; background:#252525; border-radius:4px; }
       .msa-deck-tracker .dt-status.error { border-left-color:#ffaaa0; color:#edc782; background:#352e23; }
-      .msa-deck-tracker .dt-binding { margin:8px 0 11px; border:1px solid #2e4358; border-radius:7px; padding:7px 9px; background:#192a3d; }
+      .msa-deck-tracker .dt-binding { margin:8px 0 11px; border:1px solid #333; border-radius:4px; padding:7px 9px; background:#191919; }
       .msa-deck-tracker .dt-binding summary { cursor:pointer; font-size:.8333em; font-weight:650; }
       .msa-deck-tracker .dt-bind-form { margin-top:8px; display:grid; gap:7px; }
       .msa-deck-tracker .dt-bind-form label { display:grid; gap:4px; font-size:.8333em; }
-      .msa-deck-tracker .dt-bind-select { width:100%; min-width:0; min-height:33px; border:1px solid #344c62; border-radius:6px; background:#192a3d; padding:5px; }
-      .msa-deck-tracker .dt-bind-confirm { width:100%; min-height:34px; padding:6px 8px; border:1px solid #7be2c8; border-radius:6px; color:#09251e; background:#7be2c8; font-weight:650; }
-      .msa-deck-tracker .dt-bind-note { font-size:.8333em; line-height:1.6; color:#9cafc6; }
+      .msa-deck-tracker .dt-bind-select { width:100%; min-width:0; min-height:33px; border:1px solid #444; border-radius:4px; background:#191919; padding:5px; }
+      .msa-deck-tracker .dt-bind-confirm { width:100%; min-height:34px; padding:6px 8px; border:1px solid #ddd; border-radius:4px; color:#111; background:#ddd; font-weight:650; }
+      .msa-deck-tracker .dt-bind-note { font-size:.8333em; line-height:1.6; color:#a0a0a0; }
       .msa-deck-tracker .dt-list-header, .msa-deck-tracker .dt-card-row { display:grid; grid-template-columns:minmax(0,1fr) 31px 37px 46px; gap:4px; align-items:center; }
-      .msa-deck-tracker .dt-list-header { font-size:.8333em; color:#9cafc6; padding:5px 5px 5px 8px; text-align:center; border-bottom:1px solid #2e4358; }
+      .msa-deck-tracker .dt-list-header { font-size:.8333em; color:#a0a0a0; padding:5px 5px 5px 8px; text-align:center; border-bottom:1px solid #333; }
       .msa-deck-tracker .dt-list-header > :first-child { text-align:left; }
-      .msa-deck-tracker .dt-card-row { min-height:37px; padding:3px 5px 3px 7px; border-left:3px solid transparent; border-bottom:1px solid #293e50; background:#192a3d; font-size:.9167em; }
-      .msa-deck-tracker .dt-card-row.in-hand { border-left-color:#7be2c8; background:#183c32; }
+      .msa-deck-tracker .dt-card-row { min-height:37px; padding:3px 5px 3px 7px; border-left:3px solid transparent; border-bottom:1px solid #303030; background:#191919; font-size:.9167em; }
+      .msa-deck-tracker .dt-card-row.in-hand { border-left-color:#ddd; background:#292929; }
       .msa-deck-tracker .dt-card-row.outside { border-left-color:#bf914c; background:#332d23; }
-      .msa-deck-tracker .dt-card-row.known-zero .dt-card-code { color:#a8b8c8; }
+      .msa-deck-tracker .dt-card-row.known-zero .dt-card-code { color:#999; }
       .msa-deck-tracker .dt-card-control { min-height:30px; min-width:0; padding:2px 0; border:0; border-radius:3px; text-align:left; background:transparent; display:flex; flex-direction:column; align-items:flex-start; gap:1px; }
-      .msa-deck-tracker .dt-card-control:hover { background:#294a3e; }
+      .msa-deck-tracker .dt-card-control:hover { background:#333; }
       .msa-deck-tracker .dt-unknown-card:hover { background:transparent; }
-      .msa-deck-tracker .dt-card-code { font:.9167em/1.45 ui-monospace,monospace; text-decoration:underline dotted #a9bcb0; text-underline-offset:3px; overflow-wrap:anywhere; }
+      .msa-deck-tracker .dt-card-code { font:.9167em/1.45 ui-monospace,monospace; text-decoration:underline dotted #aaa; text-underline-offset:3px; overflow-wrap:anywhere; }
       .msa-deck-tracker .dt-card-name { font-size:.9167em; line-height:1.4; overflow-wrap:anywhere; }
       .msa-deck-tracker .dt-number { text-align:center; font-variant-numeric:tabular-nums; }
-      .msa-deck-tracker .dt-number.dt-hand-count { font-weight:700; color:#7be2c8; }
+      .msa-deck-tracker .dt-number.dt-hand-count { font-weight:700; color:#ddd; }
       .msa-deck-tracker .dt-number.uncertain { color:#e6c489; }
-      .msa-deck-tracker .dt-empty { padding:13px 9px; color:#9cafc6; font-size:.8333em; line-height:1.7; border:1px dashed #344c62; border-radius:6px; }
-      .msa-deck-tracker .dt-public, .msa-deck-tracker .dt-audit { border-top:1px solid #2e4358; margin-top:10px; padding-top:8px; }
+      .msa-deck-tracker .dt-empty { padding:13px 9px; color:#a0a0a0; font-size:.8333em; line-height:1.7; border:1px dashed #444; border-radius:4px; }
+      .msa-deck-tracker .dt-public, .msa-deck-tracker .dt-audit { border-top:1px solid #333; margin-top:10px; padding-top:8px; }
       .msa-deck-tracker .dt-public summary, .msa-deck-tracker .dt-audit summary { cursor:pointer; font-size:.8333em; font-weight:650; }
       .msa-deck-tracker .dt-public-list { margin-top:5px; }
-      .msa-deck-tracker .dt-public-row { display:grid; grid-template-columns:minmax(0,1fr) 40px; align-items:center; gap:7px; padding:3px 4px; border-bottom:1px solid #293e50; }
+      .msa-deck-tracker .dt-public-row { display:grid; grid-template-columns:minmax(0,1fr) 40px; align-items:center; gap:7px; padding:3px 4px; border-bottom:1px solid #303030; }
       .msa-deck-tracker .dt-public-count { text-align:right; font-size:.8333em; font-variant-numeric:tabular-nums; }
-      .msa-deck-tracker .dt-actor { font-size:.8333em; color:#9cafc6; overflow-wrap:anywhere; }
-      .msa-deck-tracker .dt-audit-body { margin-top:6px; font-size:.8333em; color:#9cafc6; line-height:1.7; overflow-wrap:anywhere; }
+      .msa-deck-tracker .dt-actor { font-size:.8333em; color:#a0a0a0; overflow-wrap:anywhere; }
+      .msa-deck-tracker .dt-audit-body { margin-top:6px; font-size:.8333em; color:#a0a0a0; line-height:1.7; overflow-wrap:anywhere; }
       .msa-deck-tracker .dt-audit-body p + p { margin-top:6px; }
       .msa-deck-tracker .dt-warnings { padding-left:16px; margin:6px 0 0; }
     `;

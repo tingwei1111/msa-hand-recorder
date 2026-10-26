@@ -23,17 +23,26 @@ function harness(options={}) {
    readBattleLog(){if(!open||!state.logAvailable)return null;const rows=[{text:'Game started!',sourceIndex:0},{text:'Turn 1 started!',sourceIndex:1}];if(state.ended&&state.hasEnd!==false)rows.push({text:'Game ended!',sourceIndex:2});return {observedAt:new ClockDate().toISOString(),rows,players:['Me','Them'],completeFromStart:true,ended:state.ended&&state.hasEnd!==false,order:'oldest-first'};}
   },chrome:{runtime:{id:'test',onMessage:{addListener(fn){listener=fn;}},async sendMessage(message){
    messages.push(structuredClone(message));if(message.type==='MSA_STATUS'||message.type==='MSA_CAPTURE_GAP')return {ok:true};
-   await options.beforeWrite?.(message);const id=message.gameId+'.'+message.runId;
-   const session=sessions[id]||core.createSession({id,gameId:message.gameId,playerName:message.playerName});
-   sessions[id]=message.type==='MSA_RECORD'?core.appendSnapshot(session,message.snapshot):logCore.ingest(session,message.batch);
-   const saved=sessions[id];return {ok:true,id,snapshotCount:saved.snapshots.length,eventCount:saved.battleLog?.events?.length||0,coverage:saved.battleLog?.coverage||null};
+   if(message.type==='MSA_STAGE_RECORD')return options.stage?options.stage(message.payload):{ok:true,durable:true};
+   async function save(item){
+    const result=await options.beforeWrite?.(item);if(result)return result;
+    const id=item.gameId+'.'+item.runId,session=sessions[id]||core.createSession({id,gameId:item.gameId,playerName:item.playerName});
+    sessions[id]=item.type==='MSA_RECORD'?core.appendSnapshot(session,item.snapshot):logCore.ingest(session,item.batch);
+    const saved=sessions[id];return {ok:true,id,snapshotCount:saved.snapshots.length,eventCount:saved.battleLog?.events?.length||0,coverage:saved.battleLog?.coverage||null};
+   }
+   if(message.type==='MSA_RECORD_BATCH'){
+    const results=[];for(const item of message.observations){messages.push(structuredClone(item));results.push(await save(item));}
+    return {ok:true,results};
+   }
+   return save(message);
   }},storage:{local:{async get(){return {'msa.settings':{enabled:true,autoCollectLog:false,...options.settings}};}},onChanged:{addListener(fn){storageListener=fn;}}}}
  });
  vm.runInContext(fs.readFileSync(path.join(__dirname,'../extension/content.js'),'utf8'),context);
- return {state,location,document,messages,sessions,async ready(){await settle();await settle();},tick(){interval();},advance(ms){now+=ms;},
+ return {state,location,document,messages,sessions,async ready(){await settle();await new Promise(resolve=>setTimeout(resolve,5));await settle();},tick(){interval();},advance(ms){now+=ms;},
   interact(type){events[type]({type,isTrusted:true});},
   setSettings(value){storageListener({'msa.settings':{newValue:{enabled:true,autoCollectLog:false,...value}}},'local');},
   capture(message={}){return new Promise(resolve=>listener({type:'MSA_CAPTURE_NOW',gameId:game,reason:'export',...message},{id:'test'},resolve));},
+  query(type){return new Promise(resolve=>listener({type},{id:'test'},resolve));},
   counts:()=>({opens,closes,open}),stop(){for(const id of timers)clearTimeout(id);}};
 }
 test('content queues each observed hand while earlier storage acknowledgement is pending',async()=>{
@@ -70,4 +79,41 @@ test('automatic end capture retries a missing log and requires the end marker',a
  for(let i=0;i<70;i++)await new Promise(r=>setTimeout(r,1));assert.equal(h.counts().opens,1);
  h.state.logAvailable=true;h.advance(7000);h.tick();for(let i=0;i<15;i++)await new Promise(r=>setTimeout(r,1));
  assert.equal(h.counts().opens,2);assert.ok(Object.values(h.sessions)[0].battleLog.coverage.gameEnded);assert.equal(h.counts().closes,2);h.stop();
+});
+test('an isolated hand remains partial after public Log refresh and its warning is not overwritten',async()=>{
+ let rejectHand=false;
+ const h=harness({open:true,beforeWrite:message=>rejectHand&&message.type==='MSA_RECORD'?
+  {ok:false,retryable:false,code:'invalid-record-format',error:'synthetic invalid hand'}:undefined});
+ try{
+  await h.ready();h.state.ended=true;h.tick();await h.ready();
+  assert.equal((await h.capture()).partial,false);
+  rejectHand=true;h.state.card='GD01-002';h.tick();await h.ready();
+  const result=await h.capture(),rescue=await h.query('MSA_RESCUE_QUERY');
+  assert.equal(result.refreshed,true);assert.equal(result.partial,true);assert.equal(result.quarantinedCount,1);
+  assert.equal(rescue.backup.records[0].quarantined.length,1);
+  assert.ok(result.reasonParts.some(item=>item.code==='quarantined'&&item.params[0]===1));
+  const status=h.messages.filter(message=>message.type==='MSA_STATUS').at(-1).status;
+  assert.match(status.message,/格式異常已隔離/);assert.ok(status.messageParts.some(item=>item.code==='quarantined'));
+  assert.equal((await h.query('MSA_DIAGNOSTICS_QUERY')).quarantinedCount,1);
+ }finally{h.stop();}
+});
+test('structured status carries source templates and primitive parameters without interpolating them into keys',async()=>{
+ const h=harness();try{
+  await h.ready();await h.capture();
+  const status=h.messages.filter(message=>message.type==='MSA_STATUS').at(-1).status;
+  const saved=status.messageParts.find(item=>item.code==='saved-hand');
+  assert.equal(saved.source,'已保存 {0} 筆手牌');assert.equal(typeof saved.params[0],'number');
+  assert.ok(status.messageParts.every(item=>Array.isArray(item.params)));
+ }finally{h.stop();}
+});
+test('failed durable staging never claims recovery protection and still permits ordinary recording',async()=>{
+ const h=harness({stage:async()=>({ok:false,durable:false,error:'recovery-journal-full'}),beforeWrite:async()=>{throw new Error('synthetic local quota');}});
+ try{
+  await h.ready();const rescue=await h.query('MSA_RESCUE_QUERY');
+  assert.equal(rescue.backup.records[0].recovery.durableCount,0);
+  assert.ok(rescue.backup.records[0].recovery.unprotectedCount>0);
+  const status=h.messages.filter(message=>message.type==='MSA_STATUS').at(-1).status;
+  assert.ok(status.messageParts.some(item=>item.code==='recovery-unconfirmed'));
+  assert.doesNotMatch(status.message,/救援原件已持久化/);
+ }finally{h.stop();}
 });

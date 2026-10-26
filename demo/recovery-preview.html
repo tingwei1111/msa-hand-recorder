@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'">
+<title>MSA 持久化救援 · 合成驗證</title>
+<style>body{font:16px/1.7 system-ui,sans-serif;max-width:860px;margin:48px auto;padding:0 24px;background:#0b1720;color:#e5f2f4}button{font:inherit;margin:6px;padding:10px 14px;border:1px solid #729c9c;border-radius:8px;background:#173b42;color:#fff}pre{white-space:pre-wrap;word-break:break-word;background:#14262d;padding:20px;border-radius:12px}#status{padding:12px;border-left:4px solid #65cfa5}</style></head>
+<body><h1>持久化救援：重整後讀回原件</h1>
+<p>只使用本機預覽網站的獨立 IndexedDB「msa-recovery-preview」，不讀 Chrome 擴充功能或真實對局資料。</p>
+<p>按「保存合成原件」，確認交易完成後重新整理此分頁，再按「讀取持久化救援」。應讀到同一個 game／run／sequence。原件不會重播進正規紀錄。</p>
+<div><button id="stage" type="button">保存合成原件</button><button id="reopen" type="button">重新建立資料庫連線</button>
+<button id="read" type="button">讀取持久化救援</button><button id="reset" type="button">清除本頁合成原件</button></div>
+<p id="status" role="status">讀取中…</p><pre id="result"></pre>
+<script src="/extension/recovery-journal.js?v=ef954ec85ab0"></script><script src="/demo/recovery-preview.js?v=cd2dfba1b2b0"></script></body></html>

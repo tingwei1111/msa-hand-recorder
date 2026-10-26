@@ -55,7 +55,9 @@ for path in extension_files:
 files = [path for path in extension_files if path.is_file()]
 files += [ROOT / name for name in [
     "README.md", "README.en.md", "CHANGELOG.md", "LICENSE", "CONTRIBUTING.md", "THIRD_PARTY_NOTICES.md", "docs/使用教學.md", "docs/user-guide.en.md",
-    "docs/card-sources.md", "docs/card-sources.en.md", "docs/Rust-Wasm.md", "docs/Rust-Wasm.en.md", "docs/sharing.md", "docs/v0.9.md", "docs/v0.10.md",
+    "docs/card-sources.md", "docs/card-sources.en.md", "docs/Rust-Wasm.md", "docs/Rust-Wasm.en.md", "docs/sharing.md", "docs/v0.9.md", "docs/v0.10.md", "docs/v0.11.md",
+    "docs/images/popup-v0.11-en.png", "docs/images/library-v0.11-zh-TW.png", "docs/images/library-v0.11-en.png",
+    "docs/images/review-v0.11-en.png", "docs/images/report-v0.11-en.png",
     "docs/images/popup-v0.10-en.png", "docs/images/popup-v0.10-zh-CN.png", "docs/images/review-v0.10-en.png", "docs/images/library-v0.10-en.png",
     "docs/images/popup-v0.9.png", "docs/images/library-v0.9.png", "docs/images/review-v0.9.png",
     "docs/images/popup-v0.4.jpg", "docs/images/review-v0.4.jpg", "docs/images/live-panel-v0.5.jpg",

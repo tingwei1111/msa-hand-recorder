@@ -7,6 +7,7 @@
     const shared=options.isolated!==true,clientId=crypto.randomUUID(),database={},listeners=new Set(),messageListeners=[];
     const pending=new Map(),cardPending=new Map(),cardCache=new Map();
     let queue=Promise.resolve(),libraryStore=null;
+    const recoveryJournal=root.MSARecoveryJournal?.create({indexedDB:root.indexedDB,databaseName:'msa-preview-recovery-journal'});
     const channel=shared&&typeof BroadcastChannel==='function'?new BroadcastChannel('msa-preview-workspace-v06'):null;
     function parsed(){const raw=localStorage.getItem(STORE);if(raw===null)return null;const value=JSON.parse(raw);if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('合成預覽資料格式錯誤；請使用「清除所有合成資料」。');return value;}
     function replace(next){for(const key of Object.keys(database))delete database[key];Object.assign(database,copy(next));}
@@ -82,6 +83,20 @@
     async function sendMessage(message){
       try{
         if(typeof options.onMessage==='function'){const result=await options.onMessage(message);if(result!==undefined)return result;}
+        if(message.type==='MSA_STAGE_RECORD'){
+          if(!recoveryJournal)return {ok:false,durable:false,error:'synthetic-recovery-module-unavailable'};
+          return {ok:true,...await recoveryJournal.stage(message.payload,{tabId:1,documentId:clientId})};
+        }
+        if(message.type==='MSA_GET_RESCUE'){
+          const memory=await pageRequest({type:'MSA_RESCUE_QUERY'}),persisted=recoveryJournal?await recoveryJournal.backup():{records:[]};
+          const groups=new Map((memory?.backup?.records||[]).map(record=>[record.gameId+'.'+record.runId,{...record,journal:[]}]));
+          for(const entry of persisted.records){const key=entry.gameId+'.'+entry.runId;
+            if(!groups.has(key))groups.set(key,{gameId:entry.gameId,runId:entry.runId,playerName:entry.playerName,pending:[],quarantined:[],journal:[]});
+            groups.get(key).journal.push(entry);}
+          return {ok:true,backup:{format:'msa-unsaved-rescue',schemaVersion:2,exportedAt:new Date().toISOString(),records:[...groups.values()],
+            recovery:{available:Boolean(recoveryJournal),durableRecordCount:persisted.records.length,error:''},page:{available:Boolean(memory?.ok),scope:'active-tab-only'},
+            warning:'僅本機預覽的合成原件，未讀取真實擴充功能資料；下載不會清除救援原件。'}};
+        }
         if(message.type==='MSA_CARD_LOOKUP')return cardLookup(message);
         if(message.type==='MSA_NOTE_ACTION')return await enqueue(()=>noteAction(message));
         if(message.type==='MSA_BIND_LIVE_DECK')return await enqueue(async()=>{
@@ -120,7 +135,7 @@
     root.chrome=root.chrome||{};
     root.chrome.storage=storage;root.chrome.runtime={id:'synthetic-extension',getURL:previewUrl,getManifest:()=>({version:root.MSARecorderCore?.VERSION||'0.7.0'}),sendMessage,
       onMessage:{addListener(listener){messageListeners.push(listener);markActive();},removeListener(listener){const index=messageListeners.indexOf(listener);if(index>=0)messageListeners.splice(index,1);}}};
-    return {database,storage,messageListeners,sendMessage,reset:async()=>{persist(copy(options.seed||{}));},storeKey:STORE};
+    return {database,storage,messageListeners,sendMessage,recoveryJournal,reset:async()=>{persist(copy(options.seed||{}));},storeKey:STORE};
   }
   root.MSAPreviewWorkspace=Object.freeze({create,STORE});
 })(globalThis);

@@ -1,6 +1,7 @@
 (async () => {
   'use strict';
   const l10n = (source, ...values) => globalThis.MSAI18n ? globalThis.MSAI18n.t(source, ...values) : String(source ?? '').replace(/\{(\d+)\}/g, (match, index) => index < values.length ? String(values[index] ?? '') : match);
+  const reasonText = result => result?.reasonParts?.length ? (globalThis.MSAI18n?.status({messageParts:result.reasonParts}) || result.reason || '') : (globalThis.MSAI18n?.message(result?.reason) || result?.reason || '');
   await globalThis.MSAI18n?.ready();
 
 
@@ -81,7 +82,7 @@
     const result = info?.refresh;
     if (!result) return l10n('匯出前會刷新對應對局。請先保持 MSA 分頁開啟，再匯出報告。');
     const status = result.code==='saved-only'?l10n('已選擇匯出本機已存資料'):result.refreshed ? (result.partial ? l10n('已刷新，仍有部分資料待確認') : l10n('已完成匯出前刷新')) : l10n('未能確認刷新，使用既有資料');
-    return `${status}${result.reason ? `：${result.reason}` : ''}。${info.storageReadAt ? l10n("本機資料讀取於 {0}。", dateText(info.storageReadAt)) : ''}`;
+    return `${status}${result.reason ? `：${reasonText(result)}` : ''}。${info.storageReadAt ? l10n("本機資料讀取於 {0}。", dateText(info.storageReadAt)) : ''}`;
   }
 
   function renderExportStatus() {
@@ -513,15 +514,7 @@
     }
   }
 
-  function applyData(values) {
-    workspaceValues = values;
-    sessions = Object.entries(values).filter(([key, value]) => key.startsWith(PREFIX) && value && typeof value === 'object' && Array.isArray(value.snapshots))
-      .map(([key, value]) => ({ id: key.slice(PREFIX.length), session: value }))
-      .sort((a, b) => (Date.parse(b.session.updatedAt) || 0) - (Date.parse(a.session.updatedAt) || 0));
-    if (!sessions.some((entry) => entry.id === selectedId)) {
-      if (selectedId && sessions.length) notice(l10n('指定記錄已不存在，現在顯示最近一筆本機記錄。'));
-      selectedId = sessions[0]?.id || '';
-    }
+  function renderSessionOptions() {
     $('review-session').replaceChildren();
     for (const entry of sessions) {
       const option = element('option', '', `${dateText(entry.session.startedAt)} · ${entry.session.playerName || l10n('僅公開 Log／玩家未辨識')} · ${(entry.session.gameId || entry.id).slice(0, 12)}`);
@@ -531,6 +524,18 @@
     if (!sessions.length) $('review-session').append(element('option', '', l10n('尚無本機記錄')));
     $('review-session').value = selectedId;
     $('review-session').disabled = !sessions.length || exportInProgress;
+  }
+
+  function applyData(values) {
+    workspaceValues = values;
+    sessions = Object.entries(values).filter(([key, value]) => key.startsWith(PREFIX) && value && typeof value === 'object' && Array.isArray(value.snapshots))
+      .map(([key, value]) => ({ id: key.slice(PREFIX.length), session: value }))
+      .sort((a, b) => (Date.parse(b.session.updatedAt) || 0) - (Date.parse(a.session.updatedAt) || 0));
+    if (!sessions.some((entry) => entry.id === selectedId)) {
+      if (selectedId && sessions.length) notice(l10n('指定記錄已不存在，現在顯示最近一筆本機記錄。'));
+      selectedId = sessions[0]?.id || '';
+    }
+    renderSessionOptions();
     renderSelected();
   }
 
@@ -554,8 +559,8 @@
     }
   }
 
-  function standaloneHTML(current, exportInfo) {
-    return globalThis.MSABattleLogCore.toHTML(current, { exportInfo });
+  function standaloneHTML(current, exportInfo, language) {
+    return globalThis.MSABattleLogCore.toHTML(current, { exportInfo, language });
   }
 
   function download(contents, extension, mimeType, suffix, current, exportInfo) {
@@ -587,7 +592,7 @@
   $('download-review').addEventListener('click', async () => {
     if (!session || exportInProgress) return;
     const selection = { id: selectedId, gameId: session.gameId, playerName: session.playerName || '',
-      combine: $('combine-segments').checked, format: $('export-format').value,savedOnly:Boolean($('export-saved-only')?.checked) };
+      language:globalThis.MSAI18n?.language || 'zh-TW', combine: $('combine-segments').checked, format: $('export-format').value,savedOnly:Boolean($('export-saved-only')?.checked) };
     exportInProgress = true;
     loadSequence += 1;
     clearTimeout(reloadTimer);
@@ -634,8 +639,8 @@
         jsonRecord[infoKey] = exportInfo;
         download(JSON.stringify(jsonRecord, null, 2), 'json', 'application/json;charset=utf-8', 'record', current, exportInfo);
       }
-      else if (format === 'html') download(standaloneHTML(current, exportInfo), 'html', 'text/html;charset=utf-8', 'review', current, exportInfo);
-      else if (format === 'markdown') download(globalThis.MSABattleLogCore.toMarkdown(current, { exportInfo }), 'md', 'text/markdown;charset=utf-8', 'review', current, exportInfo);
+      else if (format === 'html') download(standaloneHTML(current, exportInfo, selection.language), 'html', 'text/html;charset=utf-8', 'review', current, exportInfo);
+      else if (format === 'markdown') download(globalThis.MSABattleLogCore.toMarkdown(current, { exportInfo, language:selection.language }), 'md', 'text/markdown;charset=utf-8', 'review', current, exportInfo);
       else {
         const csv = format === 'hands-csv' ? globalThis.MSARecorderCore.toCSV(current)
           : format === 'combined-csv' ? globalThis.MSABattleLogCore.toCSV(current) : globalThis.MSABattleLogCore.toEventsCSV(current);
@@ -676,6 +681,6 @@
     if (exportInProgress) { pendingReload = true; return; }
     clearTimeout(reloadTimer); reloadTimer = setTimeout(loadData, 180);
   });
-  await globalThis.MSAI18n?.mount(document, () => { if (!exportInProgress) { renderSelected(); updateExportControls(); } });
+  await globalThis.MSAI18n?.mount(document, () => { if (!exportInProgress) { renderSessionOptions(); renderSelected(); updateExportControls(); } });
   loadData();
 })();

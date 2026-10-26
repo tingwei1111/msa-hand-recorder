@@ -1,30 +1,30 @@
-.review-workspace { margin:20px 0; padding:20px 22px; border:1px solid #dce4dd; border-radius:12px; background:#fff; color:#17313b; }
+.review-workspace { margin:32px 0 40px; padding:0 0 28px; border:0; border-bottom:1px solid var(--line); background:transparent; color:var(--ink); }
 .workspace-heading,.workspace-note-head { display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px 20px; }
-.workspace-heading h2 { font-size:18px; }
-.workspace-caption { margin:5px 0; color:#627571; font-size:11px; overflow-wrap:anywhere; }
+.workspace-heading h2 { font-size:21px; font-weight:400; }
+.workspace-caption { margin:5px 0; color:var(--muted); font-size:11px; overflow-wrap:anywhere; }
 .workspace-controls { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px 20px; margin:12px 0; }
 .workspace-controls label { display:flex; align-items:center; gap:7px; font-size:12px; cursor:pointer; }
-.workspace-controls input[type=checkbox] { width:16px; height:16px; min-height:0; margin:0; accent-color:#087f75; }
-.workspace-note-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
-.workspace-note { min-width:0; padding:14px 16px; border:1px solid #dce4dd; border-left:3px solid #087f75; border-radius:8px; background:#f9fbf7; }
-.workspace-note.deleted { background:#f4f1eb; border-left-color:#b8a47b; }
-.workspace-note h3 { font-size:13px; margin:0; }
-.workspace-alignment { color:#526c5f; border-radius:4px; padding:3px 6px; background:#eaf1e8; font-size:10px; }
+.workspace-controls input[type=checkbox] { width:16px; height:16px; min-height:0; margin:0; accent-color:var(--ink); }
+.workspace-note-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 28px; }
+.workspace-note { min-width:0; padding:16px 0; border:0; border-top:1px solid var(--line); background:transparent; }
+.workspace-note.deleted { background:transparent; border-top-color:var(--amber); }
+.workspace-note h3 { font-size:13px; margin:0; font-weight:400; }
+.workspace-alignment { color:var(--muted); padding:0; background:transparent; font:10px/1.6 ui-monospace,monospace; }
 .workspace-note-text { white-space:pre-wrap; margin:10px 0; font-size:13px; line-height:1.7; overflow-wrap:anywhere; }
-.workspace-source { white-space:pre-wrap; font:10px/1.6 ui-monospace,monospace; color:#627571; margin:7px 0; overflow-wrap:anywhere; }
+.workspace-source { white-space:pre-wrap; font:10px/1.6 ui-monospace,monospace; color:var(--muted); margin:7px 0; overflow-wrap:anywhere; }
 .workspace-note-actions,.workspace-dialog-actions { display:flex; flex-wrap:wrap; gap:7px; justify-content:flex-end; margin-top:12px; }
 .workspace-note-actions .button { min-height:34px; padding:6px 9px; font-size:11px; }
 .workspace-snapshot-note { margin-top:10px; min-height:34px; padding:6px 10px; font-size:11px; }
-.workspace-note-missing,.workspace-notice { padding:9px 11px; border-radius:6px; color:#426b54; background:#edf5ec; font-size:11px; overflow-wrap:anywhere; }
-.workspace-note-missing,.workspace-notice.error { color:#865c1e; background:#fff2dc; }
-.workspace-empty { margin:0; padding:14px; border:1px dashed #cbd8cf; border-radius:8px; color:#627571; font-size:12px; }
-.workspace-note-dialog { width:min(560px,calc(100vw - 32px)); max-height:calc(100vh - 40px); overflow:auto; border:1px solid #b7cbbb; border-radius:14px; padding:24px; background:#f5f6f2; color:#17313b; box-shadow:0 16px 50px #17313b33; }
-.workspace-note-dialog::backdrop { background:#17313b70; }
+.workspace-note-missing,.workspace-notice { padding:4px 0 4px 12px; border-left:1px solid var(--line); color:var(--ink); background:transparent; font-size:11px; overflow-wrap:anywhere; }
+.workspace-note-missing,.workspace-notice.error { color:var(--amber); border-color:var(--amber); background:transparent; }
+.workspace-empty { margin:0; padding:14px 0; border:0; color:var(--muted); font-size:12px; }
+.workspace-note-dialog { width:min(560px,calc(100vw - 32px)); max-height:calc(100vh - 40px); overflow:auto; border:1px solid #606060; border-radius:2px; padding:24px; background:var(--paper); color:var(--ink); box-shadow:0 16px 50px #0007; }
+.workspace-note-dialog::backdrop { background:#000a; }
 .workspace-note-dialog h2 { font-size:21px; margin:0; }
-.workspace-dialog-anchor { white-space:pre-wrap; color:#627571; font-size:11px; margin:10px 0 16px; overflow-wrap:anywhere; }
-.workspace-note-dialog label { display:block; font-size:12px; font-weight:650; margin:13px 0; }
-.workspace-note-dialog textarea,.workspace-note-dialog input { display:block; width:100%; margin-top:6px; font:inherit; font-weight:400; color:#17313b; background:white; border:1px solid #cbd8cf; border-radius:8px; padding:10px 12px; }
+.workspace-dialog-anchor { white-space:pre-wrap; color:var(--muted); font-size:11px; margin:10px 0 16px; overflow-wrap:anywhere; }
+.workspace-note-dialog label { display:block; font-size:12px; font-weight:400; margin:13px 0; }
+.workspace-note-dialog textarea,.workspace-note-dialog input { display:block; width:100%; margin-top:6px; font:inherit; font-weight:400; color:var(--ink); background:var(--surface); border:1px solid var(--line); border-radius:2px; padding:10px 12px; }
 .workspace-note-dialog textarea { resize:vertical; min-height:150px; max-height:45vh; }
-.workspace-note-dialog textarea:focus-visible { outline:3px solid #168d81; outline-offset:3px; }
-.workspace-dialog-status { font-size:12px; color:#865c1e; margin:10px 0; overflow-wrap:anywhere; }
-@media(max-width:720px) { .workspace-note-list { grid-template-columns:1fr; }.review-workspace { padding:16px; }.workspace-heading .button { width:100%; }.workspace-note-dialog { padding:18px; } }
+.workspace-note-dialog textarea:focus-visible { outline:2px solid var(--ink); outline-offset:3px; }
+.workspace-dialog-status { font-size:12px; color:var(--amber); margin:10px 0; overflow-wrap:anywhere; }
+@media(max-width:720px) { .workspace-note-list { grid-template-columns:1fr; }.review-workspace { padding:0 0 24px; }.workspace-heading .button { width:100%; }.workspace-note-dialog { padding:18px; } }

@@ -2,31 +2,43 @@
 
 **English** · [繁體中文](使用教學.md) · [Project home](../README.en.md) · [Download releases](https://github.com/tingwei1111/msa-hand-recorder/releases)
 
-This guide covers the **v0.10.0 prerelease** for desktop Google Chrome. MSA Hand Recorder saves observations of your own visible hand and both players' public Battle Log in Mobile Suit Arena. It provides an in-game panel, a deck list with observed counts, match review, bookmarks, deck versions, manually confirmed results, and local backup/restore.
+This guide covers the **v0.11.0 prerelease** for desktop Google Chrome. MSA Hand Recorder saves observations of your own visible hand and both players' public Battle Log in Mobile Suit Arena. It provides an in-game panel, a deck list with observed counts, match review, bookmarks, deck versions, manually confirmed results, and local backup/restore.
 
 **The interface supports English, Traditional Chinese and Simplified Chinese.** Select **English** under **Interface language** at the top of the popup, review or workspace. In the live panel, use **Display settings**. Your choice is saved and synchronizes across open extension pages. Older screenshots below use Traditional Chinese and synthetic demonstration data; the bilingual control reference remains useful for matching them.
 
 **A complete live match has not yet been validated end to end.** Start with a test match and compare the saved card IDs, counts, turns, and public events with the game. A successful save, a fully recognized snapshot, and a public log containing the start and end are different kinds of evidence; none proves that every hand change was captured.
 
-## Language settings in v0.10
+## Language settings
 
 The initial language follows your browser; an explicit saved choice takes priority. Switching language keeps the active recording, selected match, search filters and unsaved deck/result/note drafts. The preference belongs to this Chrome profile and is not overwritten by backup imports. Chrome’s extension-manager name follows Chrome’s language independently.
 
-Player names, notes, card names, official card text, raw Battle Log, and JSON/CSV field names retain their original content. Standalone HTML and Markdown retain the existing Traditional Chinese report-heading template. The English interface requests official English card text; both Chinese interfaces request official Traditional Chinese card text. Text and image languages may differ.
+Player names, notes, card names, official card text, raw Battle Log, and JSON/CSV field names retain their original content. HTML and Markdown report headings follow the selected interface language at export time; original evidence stays unchanged. The English interface requests official English card text; both Chinese interfaces request official Traditional Chinese card text. Text and image languages may differ.
 
-See [v0.10 changes](v0.10.md#english).
+See [v0.11 changes](v0.11.md#english).
 
-## New controls in v0.9
+## Common controls
 
 | Chinese control | Where and how to use it |
 | --- | --- |
 | 本機儲存空間 / Local storage | At the bottom of the popup and the top of Data & decks. It shows actual used MiB and reminders at 80%/95%. Back up important records when prompted; old records are not deleted automatically. |
-| 下載未存資料救援 JSON / Rescue unsaved data | Keep the original MSA tab open, expand 儲存遇到問題？ at the bottom of the popup, then download the rescue JSON. This preserves pending/isolated originals, is separate from an ordinary full backup, and cannot currently be imported directly. |
+| 下載未存資料救援 JSON / Download unsaved-data rescue JSON | Expand Having trouble saving? at the bottom of the popup and download rescue JSON. It combines available page buffers with acknowledged local recovery records, including after a page reload. Some originals may already be saved; rescue records are not automatically replayed or imported. |
 | 直接匯出已存資料 / Export saved data directly | In Match review, check this option, choose a format, and click Export. It skips waiting for an MSA refresh and explicitly marks that fact in the export. |
 | 保存對局確認 / Save match confirmation | Unsaved match drafts survive deck saves and library list updates. Press this button to store a draft formally; save before closing the page. |
-| 大廳待命中 / Lobby standby | This is a normal lobby state. Diagnostics independently check page versions and the deck engine; verify hand/Log observations after entering a match. |
+| 大廳待命中 / Lobby · ready | This is a normal lobby state. Diagnostics independently check page versions and the deck engine; verify hand/Log observations after entering a match. |
 
-See the [v0.9 change notes](v0.9.md#english) for before/after behavior, screenshots, and validation limits.
+See the [v0.11 change notes](v0.11.md#english) for behavior, screenshots and validation limits.
+
+## v0.11: tabs and persistent rescue
+
+Data & decks now has **Matches, Deck, Results and Backups** tabs. Tab changes retain unsaved results, deck drafts and import previews. Arrow keys and Home/End navigate the tab bar. Save before closing the page.
+
+Each new observation attempts to enter an independent local recovery journal first. Protection is acknowledged only after its transaction completes. A successful normal session write removes the matching journal entry; failures, lost acknowledgements and invalid records may leave originals behind. These are not saved hand snapshots or statistical results and are never replayed automatically. The last observation before a reload may not have reached disk.
+
+Standard full backups exclude the independent recovery journal. Before updating or removing the extension, download and inspect rescue JSON separately if pending/rescue originals remain.
+
+The journal is bounded at **16 MiB / 512 entries, with a 2 MiB per-entry limit**, with no automatic eviction. Downloading creates a copy and **does not clear the journal**; this version has no journal cleanup interface. When full, new originals cannot gain durable protection, while normal session saves are still attempted. Keep the original tab open and check pending status. The storage meter covers normal Chrome storage, excluding the independent IndexedDB journal.
+
+Rescue JSON combines journal originals with the currently selected MSA tab’s available memory buffers. Switch to each other open tab separately to rescue its not-yet-persisted buffers. Originals may duplicate normal records; inspect them manually. Rescue JSON is not a standard importable backup.
 
 ## Contents
 
@@ -48,9 +60,9 @@ See the [v0.9 change notes](v0.9.md#english) for before/after behavior, screensh
 ## 1. First match checklist
 
 1. Install the release ZIP, then refresh the MSA tab **before** starting a match.
-2. Open the extension, enable recording, and run **記錄自檢** (Recording check). Confirm the loaded versions and your player identity.
+2. Open the extension, enable recording, and run **記錄自檢** (Recorder check). Confirm the loaded versions and your player identity.
 3. Open **資料與牌組** (Data & decks) and save your 50-card main-deck version if you want the deck view.
-4. After your first hand has been saved, open **對戰小窗** (Match panel), select the deck you are actually using, and confirm its binding to this match.
+4. After your first hand has been saved, open **對戰小窗** (Live panel), select the deck you are actually using, and confirm its binding to this match.
 5. Compare the saved hand with the game after the opening hand, a draw, and a play. Check timestamps, counts, and public events.
 6. After the match, keep the MSA tab open, use **更新 Log** (Refresh Log), and open **對局回顧** (Match review). Inspect coverage and any gaps before exporting.
 7. Confirm the result manually and download a full library backup. For a readable single-match report, export standalone HTML separately.
@@ -61,14 +73,14 @@ You do not need to take screenshots for routine recording. The recorder observes
 
 ### First installation
 
-1. Open [GitHub Releases](https://github.com/tingwei1111/msa-hand-recorder/releases). Expand the release's **Assets** and download its install ZIP, for example `msa-hand-recorder-v0.10.0.zip`.
+1. Open [GitHub Releases](https://github.com/tingwei1111/msa-hand-recorder/releases). Expand the release's **Assets** and download its install ZIP, for example `msa-hand-recorder-v0.11.0.zip`.
 2. Extract the ZIP to a permanent folder. Keep this folder after installation; Chrome reads the unpacked extension from it.
 3. Enter `chrome://extensions` directly in Chrome's address bar and enable **Developer mode**.
 4. Click **Load unpacked** and select the extracted **`extension` subfolder**, which contains `manifest.json`.
 5. Pin **MSA 手牌記錄器** in Chrome's extensions menu, then refresh MSA before starting a match.
 
 ```text
-msa-hand-recorder-v0.10.0/
+msa-hand-recorder-v0.11.0/
 ├── README.md
 ├── docs/
 └── extension/          ← select this folder in Chrome
@@ -112,7 +124,7 @@ The extension stores records locally with Chrome's `storage` permission. Its MSA
 
 If updating from an older release produces a Chrome permission prompt, check that it matches the documented official-card domain. The recorder does not need access to MSA's private backend, cookies, or unrelated websites.
 
-In v0.10.0 the deck projection is calculated by Rust compiled to WebAssembly. The visible-page capture, recording, Chrome storage, panel, and backup format retain their existing roles. This migration does not promise a speed improvement. See the [Rust/Wasm technical reference](Rust-Wasm.en.md) for build details.
+In v0.11.0 the deck projection is calculated by Rust compiled to WebAssembly. The visible-page capture, recording, Chrome storage, panel, and backup format retain their existing roles. This migration does not promise a speed improvement. See the [Rust/Wasm technical reference](Rust-Wasm.en.md) for build details.
 
 ## 3. Configure and check recording
 
@@ -128,7 +140,7 @@ During safe idle moments, automatic collection may briefly open the game's log, 
 
 Disabling automatic log collection stops its start/end display attempts. Explicit **更新 Log** actions and exports may still attempt to read the log when safe.
 
-### Run Recording check
+### Run Recorder check
 
 Switch to the MSA match tab you want to check, open the recorder, click **記錄自檢**, and expand **目前分頁自檢結果** (Current tab check results). Check:
 
@@ -250,7 +262,7 @@ Keep your match and saved records. Download a backup, check that the installatio
 
 ## 6. Bookmarks and review notes
 
-During a match, click **標記此刻** (Bookmark this moment). Check the source snapshot shown in the editor, add a short note or tags, then click **儲存書籤** (Save bookmark). The bookmark stays anchored to the snapshot selected when you opened the editor; a later draw does not silently move the anchor.
+During a match, click **標記此刻** (Bookmark now). Check the source snapshot shown in the editor, add a short note or tags, then click **儲存書籤** (Save bookmark). The bookmark stays anchored to the snapshot selected when you opened the editor; a later draw does not silently move the anchor.
 
 Bookmarks require a saved hand with matching identity and provenance. After a match/player change, reopen the editor so that notes cannot be saved against an old context.
 
@@ -312,7 +324,7 @@ The estimated write size includes archived originals and can exceed the original
 
 Imports verify writes record by record; they are **not an atomic transaction**. A storage limit or interruption can leave a partial import. Keep the original file, inspect verified and unfinished records, retrieve archived originals if needed, address the storage/error, then preview again. Some newly visible records do not prove that all records were restored. Uninstalling first risks losing records you could otherwise preserve.
 
-v0.8 retains the existing JSON/HTML backup formats. Its transient Wasm transport is not stored in backups and does not require a database conversion. Older records with absent fields retain their uncertainty; a missing EX count does not become zero.
+v0.11 retains the existing standard JSON/HTML backup formats. Its transient Wasm transport is not stored in backups, and old records do not need a database conversion. The separate rescue JSON is not a standard importable backup. Older records with absent fields retain their uncertainty; a missing EX count does not become zero.
 
 ## 9. Deck versions and personal results
 
@@ -330,7 +342,7 @@ These lines illustrate syntax; they are **not** a complete recommended deck. The
 
 These checks do not validate card existence, card type, colors, current restrictions, or tournament legality. Resource/Token zones are supplied by the user; the recorder does not infer an official card type from an ID.
 
-Click **保存為牌組版本** (Save deck version). Editing an existing version and saving produces a new version; identical existing content retains that version. It does not rewrite decks already frozen into matches. Use **清空並建立新牌組** (Clear and create a new deck) for another deck.
+Click **保存為牌組版本** (Save as deck version). Editing an existing version and saving produces a new version; identical existing content retains that version. It does not rewrite decks already frozen into matches. Use **清空並建立新牌組** (Clear and create a new deck) for another deck.
 
 Saved hand fragments do not automatically become a full list. After saving a version, bind it in the match panel and complete result/play-order confirmation later.
 
@@ -398,7 +410,7 @@ Official previews make on-demand requests for a single card to `www.gundam-gcg.c
 | --- | --- |
 | Chrome cannot find the manifest | Extract the ZIP and choose the `extension` subfolder containing `manifest.json`, not the outer folder or ZIP. |
 | Cannot find the installation path | Open the recorder's Details page, scroll to Source near the bottom, and find Loaded from / 載入來源. Keep the installation if the line is absent and ask for help. |
-| New features or the panel are missing | Reload the existing extension, refresh MSA at a suitable time, and run Recording check. An open game dialog can temporarily hide the panel. |
+| New features or the panel are missing | Reload the existing extension, refresh MSA at a suitable time, and run Recorder check. An open game dialog can temporarily hide the panel. |
 | Deck core is loading or unavailable | Check the complete packaged `wasm/` folder, then reload the existing extension and refresh MSA. Back up first; hand/log recording remains separate. |
 | Hand display lags behind the game | Check the saved observation time, pending writes, and recognition/storage errors. The panel does not mark pending observations as saved. |
 | No deck version is offered | Save a validly formatted 50-card main list, maximum four per ID, in Data & decks; keep resources/Tokens separate. |
@@ -419,7 +431,7 @@ Official previews make on-demand requests for a single card to `www.gundam-gcg.c
 | Deck will not save | Check syntax, exactly 50 main cards, maximum four per ID, and separate resource/Token fields. |
 | Fewer matches than recording segments | One game/confirmed player is counted once. Check confirmation and filters; unconfirmed results are excluded from rates. |
 | A downloaded file cannot be found | Check Chrome Downloads. “Download started” does not prove that a file was saved. |
-| No English interface or card-text option appears | Update to v0.10.0 and reload the existing extension. Choose English in Interface language; refresh MSA after upgrading the extension files. |
+| No English interface or card-text option appears | Update to v0.11.0 and reload the existing extension. Choose English in Interface language; refresh MSA after upgrading the extension files. |
 
 ### Common usage questions
 
@@ -452,9 +464,9 @@ Use this reference to match older screenshots and either UI language. Chrome’s
 | 自動：下方玩家手牌 | Automatic: bottom player's hand |
 | 自動收錄 Battle Log | Automatically collect Battle Log |
 | 儲存設定 | Save settings |
-| 記錄自檢 | Recording check |
+| 記錄自檢 | Recorder check |
 | 目前分頁自檢結果 | Current tab check results |
-| 對戰小窗 | Match panel |
+| 對戰小窗 | Live panel |
 | 顯示對戰側邊小窗 ↗ | Show in-game panel |
 | 牌組 / 手牌 / 公開事件 / 全部 | Deck / Hand / Public events / All |
 | 顯示設定 | Display settings |
@@ -472,7 +484,7 @@ Use this reference to match older screenshots and either UI language. Chrome’s
 | 官方來源 | Official source |
 | 更新 Log | Refresh Log |
 | 知道了 / 收起提醒 | Acknowledged / Dismiss reminder |
-| 標記此刻 | Bookmark this moment |
+| 標記此刻 | Bookmark now |
 | 儲存書籤 / 新增筆記 | Save bookmark / Add note |
 | 對局回顧 / 開啟對局回顧 | Match review / Open match review |
 | 合併同對局的相容記錄段落 | Combine compatible segments of the same match |
@@ -484,7 +496,7 @@ Use this reference to match older screenshots and either UI language. Chrome’s
 | 確認匯入這些資料 | Confirm import |
 | 匯入原件與衝突副本 | Import originals and conflict copies |
 | 下載原始資料 | Download original data |
-| 保存為牌組版本 | Save deck version |
+| 保存為牌組版本 | Save as deck version |
 | 清空並建立新牌組 | Clear and create a new deck |
 | 保存對局確認 | Save match confirmation |
 | 尚未確認 | Unconfirmed |
@@ -497,7 +509,7 @@ Open a [GitHub issue](https://github.com/tingwei1111/msa-hand-recorder/issues) i
 - Extension version and Chrome version, plus operating system.
 - The smallest set of steps that reproduces the problem.
 - Expected behavior and what actually happened.
-- Relevant Recording check results, displayed error text, and whether saved counts changed.
+- Relevant Recorder check results, displayed error text, and whether saved counts changed.
 - For a Wasm problem, whether it says loading/error and whether the packaged files are present.
 
 Remove player names, private notes, real hand history, and unrelated personal information from public screenshots or files. Prefer a small synthetic reproduction. Do not post account credentials, cookies, or private backend/network captures. If the issue only occurs in a real match, describe the capture conditions and what you checked; do not claim full coverage from a passing self-check.

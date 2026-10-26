@@ -214,6 +214,28 @@ test('panel preferences use an independent storage key and never change capture 
   h.stop();
 });
 
+test('expanding immediately projects full current data while preference persistence is pending',async()=>{
+  const write=deferred(),h=harness({set:()=>write.promise});
+  await h.ready();
+  assert.equal(h.projections.at(-1).context.panelExpanded,false);
+  h.current().callbacks.onPreferencesChange({expanded:true});
+  assert.equal(h.projections.at(-1).context.panelExpanded,true);
+  assert.equal(h.current().models.at(-1).marker,'saved-a');
+  write.resolve();await settle();h.stop();
+});
+
+test('an immediate preference render remounts when player identity changed before context sync',async()=>{
+  const h=harness();await h.ready();
+  const previous=h.current();
+  h.changeContextWithoutSync({playerName:'Demo South'});
+  previous.callbacks.onPreferencesChange({expanded:true});
+  assert.equal(previous.destroyed,true);
+  assert.notEqual(h.current(),previous);
+  await settle();
+  assert.equal(h.current().models.at(-1).playerName,'Demo South');
+  h.stop();
+});
+
 test('destroy invalidates pending reads and unregisters storage observation', async () => {
   const initial = deferred();
   const h = harness({get: () => initial.promise});

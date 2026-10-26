@@ -63,3 +63,13 @@ test('static translation changes labels and document language without overwritin
   const {api}=realm();await api.ready();function node(source){const attributes={'data-i18n':source};return {textContent:source,value:'玩家原文',getAttribute:name=>Object.hasOwn(attributes,name)?attributes[name]:null,setAttribute(name,value){attributes[name]=value;}};}
   const label=node('對局回顧'),busy=node('讀取中…'),scope={nodeType:9,documentElement:{lang:'zh-Hant'},querySelectorAll:()=>[label,busy]};api.applyStatic(scope);busy.textContent='Working on a specific task';await api.setLanguage('en');api.applyStatic(scope);assert.equal(label.textContent,'Match review');assert.equal(label.value,'玩家原文');assert.equal(busy.textContent,'Working on a specific task');assert.equal(scope.documentElement.lang,'en');
 });
+
+
+test('structured recording status translates each authored part while preserving parameter text',async()=>{
+  const {api}=realm();await api.ready();await api.setLanguage('en');
+  const value={message:'legacy',messageParts:[{source:'已保存 {0} 筆手牌',params:[8]},
+    {source:'等待儲存 {0} 筆',params:[2]},{source:'儲存失敗：{0}。下方僅顯示已存資料。',params:['原始錯誤 {1} <script>']} ]};
+  const result=api.status(value);assert.match(result,/8/);assert.doesNotMatch(result,/已保存|等待儲存|儲存失敗/);
+  assert.ok(result.includes('原始錯誤 {1} <script>'));
+  await api.setLanguage('zh-CN');assert.doesNotMatch(api.status(value),/已保存.*筆手牌|等待儲存/);
+});

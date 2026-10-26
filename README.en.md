@@ -7,13 +7,13 @@ A local Chrome recorder for **Mobile Suit Arena (MSA)** and **GUNDAM CARD GAME (
 
 This is an independent community tool, not an official Mobile Suit Arena or GUNDAM CARD GAME product.
 
-**[Download v0.10.0](https://github.com/tingwei1111/msa-hand-recorder/releases/tag/v0.10.0)** · [Full English guide](docs/user-guide.en.md) · [繁體中文教學](docs/使用教學.md) · [Report an issue](https://github.com/tingwei1111/msa-hand-recorder/issues) · [Share the project](docs/sharing.md)
+**[Download v0.11.0](https://github.com/tingwei1111/msa-hand-recorder/releases/tag/v0.11.0)** · [Full English guide](docs/user-guide.en.md) · [繁體中文教學](docs/使用教學.md) · [Report an issue](https://github.com/tingwei1111/msa-hand-recorder/issues) · [Share the project](docs/sharing.md)
 
 **[Start in five minutes](#start-in-five-minutes)** · [Full English guide](docs/user-guide.en.md) · [繁體中文教學](docs/使用教學.md) · [Contribute](CONTRIBUTING.md)
 
 ## Start in five minutes
 
-1. Open the [v0.10.0 release](https://github.com/tingwei1111/msa-hand-recorder/releases/tag/v0.10.0), expand **Assets**, download `msa-hand-recorder-v0.10.0.zip`, and extract it to a permanent folder.
+1. Open the [v0.11.0 release](https://github.com/tingwei1111/msa-hand-recorder/releases/tag/v0.11.0), expand **Assets**, download `msa-hand-recorder-v0.11.0.zip`, and extract it to a permanent folder.
 2. Visit `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select the extracted **`extension`** folder.
 3. Open the extension and select **English** under **Interface language**. Refresh MSA before starting your next match, then click **Recorder check**. The lobby should show **Lobby · ready**.
 4. Start a practice match and compare your visible hand, card IDs, quantities, and saved snapshot count. To use deck rows, save a deck in **資料與牌組** (Data & decks), then confirm its binding for this match.
@@ -25,12 +25,12 @@ This is an independent community tool, not an official Mobile Suit Arena or GUND
 
 | Item | Current status |
 | --- | --- |
-| Version | **v0.10.0 Prerelease.** Published installation files are under the release’s **Assets**. |
+| Version | **v0.11.0 Prerelease.** Published installation files are under the release’s **Assets**. |
 | Documentation | Traditional Chinese and English READMEs, full user guides, card-source notes, and developer notes. |
 | Extension interface | **Traditional Chinese, Simplified Chinese and English.** Choose “Interface language” at the top of the popup, review or workspace; in the live panel, open “Display settings”. Your choice is saved and synchronized. |
 | Card preview | The English interface requests official English text. Both Chinese interfaces request official Traditional Chinese text. Text and image languages are reported separately; images may differ. |
 | Intended environment | Desktop Google Chrome. Other browsers, phones, and tablets have not been validated. |
-| Validation | v0.10.0 passed 386 JavaScript/Wasm tests and 30 synthetic browser recording checks. The Rust/Wasm core is unchanged from v0.8. **A complete real-player match has not yet been validated end to end.** |
+| Validation | v0.11.0 passed 430 JavaScript/Wasm tests and 30 synthetic browser recording checks. The Rust/Wasm core is unchanged from v0.8. **A complete real-player match has not yet been validated end to end.** |
 
 Start with a practice match and compare card numbers, quantities, turns, and public logs manually. A successful diagnostic check or log start/end markers do not prove that every hand state was captured.
 
@@ -38,7 +38,14 @@ Start with a practice match and compare card numbers, quantities, turns, and pub
 
 Select **English**, **繁體中文** or **简体中文** from **Interface language** at the top of any extension page. In the live panel, open **Display settings**. Your browser language is used initially; a saved choice takes priority and updates open extension pages immediately without reloading your game. Player names, notes, card names and original Battle Log text stay unchanged.
 
-[v0.10 changes and validation](docs/v0.10.md#english) · [English popup preview](docs/images/popup-v0.10-en.png)
+[v0.11 changes and validation](docs/v0.11.md#english) · [English popup preview](docs/images/popup-v0.11-en.png)
+
+## What changed in v0.11
+
+- A minimal monochrome interface and Matches / Deck / Results / Backups tabs. Switching tabs or languages preserves drafts.
+- HTML/Markdown headings use the language selected at export time; names, notes, card text and original logs remain unchanged.
+- Batched session writes retain intermediate observations. A collapsed live panel computes only its status summary.
+- Acknowledged local recovery originals remain downloadable after reload. They are not replayed automatically and cannot recover unseen or not-yet-persisted data.
 
 ## What it helps you do
 
@@ -47,11 +54,11 @@ Select **English**, **繁體中文** or **简体中文** from **Interface langua
 - **Keep your own data:** organize deck versions, notes, and manually confirmed results locally; download backups or offline reports.
 - **See uncertainty:** complete counts, partial lower bounds, and unknown values are separate rather than treating missing data as zero.
 
-![v0.9 dark library, storage usage and backups; synthetic data](docs/images/library-v0.9.png)
+![v0.11 minimal library with tab navigation; synthetic data](docs/images/library-v0.11-en.png)
 
-[Popup](docs/images/popup-v0.9.png) · [Match review](docs/images/review-v0.9.png) · [v0.9 changes](docs/v0.9.md)
+[Popup](docs/images/popup-v0.11-en.png) · [Match review](docs/images/review-v0.11-en.png) · [v0.11 changes](docs/v0.11.md#english)
 
-*Screenshots use synthetic data. v0.9 gives the popup, review, library, and live panel a consistent dark interface. The panel appears inside the MSA tab; it is not a system-wide always-on-top window.*
+*Screenshots use synthetic data. v0.11 uses monochrome surfaces, thin rules and generous spacing across the popup, review, library and live panel. The panel appears inside the MSA tab; it is not a system-wide always-on-top window.*
 
 ## Features
 
@@ -74,14 +81,14 @@ Select **English**, **繁體中文** or **简体中文** from **Interface langua
 
 **Players do not need Rust, Node.js, Python, or a local server.** The ZIP includes the local Wasm core. Installation is currently manual; there is no Chrome Web Store listing or automatic update mechanism.
 
-1. Open the [v0.10.0 release](https://github.com/tingwei1111/msa-hand-recorder/releases/tag/v0.10.0), expand **Assets**, and download `msa-hand-recorder-v0.10.0.zip`.
+1. Open the [v0.11.0 release](https://github.com/tingwei1111/msa-hand-recorder/releases/tag/v0.11.0), expand **Assets**, and download `msa-hand-recorder-v0.11.0.zip`.
 2. Extract it into a permanent folder. Find the **`extension` subfolder** containing `manifest.json`.
 3. **Type** `chrome://extensions` into Chrome’s address bar and enable **Developer mode**.
 4. Click **Load unpacked** and select **`extension`**.
-5. Pin the extension named **MSA 手牌記錄器**. Reload MSA before starting a match, then click **記錄自檢** (Recording check).
+5. Pin the extension named **MSA 手牌記錄器**. Reload MSA before starting a match, then click **記錄自檢** (Recorder check).
 
 ```text
-msa-hand-recorder-v0.10.0/
+msa-hand-recorder-v0.11.0/
 ├── README.md
 ├── docs/
 └── extension/              ← select this folder in Chrome
@@ -94,6 +101,8 @@ Do not select the ZIP or copy just one JavaScript file. Keep the installed folde
 
 ## Update without losing access to existing records
 
+Standard full backups exclude the independent recovery journal. If pending/rescue originals remain, download and inspect rescue JSON separately.
+
 1. Open **資料與牌組** (Data & decks), download a full JSON backup, and retain the old extension files for rollback. If your old version has no full-backup button, use its available JSON export to save existing matches first.
 2. Find the folder Chrome is **currently loading**: `chrome://extensions` → **MSA 手牌記錄器** → **Details** → scroll near the bottom to **Source** → **Loaded from:**. It appears above **Remove extension**; clicking the path opens its location in the system file manager.
 3. Update the **complete contents of the same original `extension` folder**, including `wasm`.
@@ -104,9 +113,9 @@ Do not uninstall first or load another folder as a separate installation: a diff
 ## Your first match
 
 1. **Prepare:** open **資料與牌組** (Data & decks) and save a 50-card main-deck version. Keep resources and Tokens separate. Format validation does not establish card existence, type, current restrictions, or tournament legality.
-2. **Start observing:** enable automatic recording, check your player/hand position, leave automatic Battle Log collection enabled, and run **記錄自檢** (Recording check).
+2. **Start observing:** enable automatic recording, check your player/hand position, leave automatic Battle Log collection enabled, and run **記錄自檢** (Recorder check).
 3. **After a hand is saved:** open **牌組** (Deck), select a saved version, and click **確認綁定本場牌組** (Confirm deck for this match). Compare your actual hand with saved counts and observation time.
-4. **While playing:** look up a card or use **標記此刻** (Bookmark this moment). Pending observations and write errors are not successful saves.
+4. **While playing:** look up a card or use **標記此刻** (Bookmark now). Pending observations and write errors are not successful saves.
 5. **Afterward:** keep the match tab open, click **更新 Log** (Refresh log), inspect turns/start/end/gaps in **對局回顧** (Match review), then confirm the result and download a backup or report.
 
 The [full English guide](docs/user-guide.en.md) includes a Chinese-to-English button glossary and troubleshooting steps.
@@ -141,7 +150,7 @@ See [card sources and network behavior](docs/card-sources.en.md) for cache and l
 | --- | --- |
 | Chrome cannot find `manifest.json` | Extract the full archive and select the inner `extension` folder. |
 | The old version still appears | Check **Loaded from:**, reload the existing extension, then reload MSA. |
-| How do I switch the interface to English? | An English interface is not implemented yet. Use the English guide’s Chinese button glossary. |
+| How do I switch the interface to English? | Choose English under Interface language at the top of an extension page, or under Display settings in the live panel. |
 | Hand records exist but the public log is empty | Keep the match open. When safe, click **更新 Log** (Refresh log) or open the game’s Battle Log, then check saved events. |
 | The Wasm core is loading or unavailable | Check that the complete `extension/wasm` folder was installed; reload the extension and MSA. Preserve data instead of uninstalling. Hand/log recording does not depend on successful deck-engine initialization. |
 | Some history seems missing after a reload | Combine compatible recording segments in review; unseen moments cannot be recovered. |
@@ -154,9 +163,9 @@ More cases are covered in the [full guide](docs/user-guide.en.md).
 
 Issues in **English or Traditional Chinese** are welcome at [GitHub Issues](https://github.com/tingwei1111/msa-hand-recorder/issues). Include extension/Chrome versions, operating system, reproduction steps, expected/actual behavior, and whether a synthetic preview reproduces it. Attach only necessary reviewed screenshots or excerpts; do not publish a full real-match backup by default.
 
-Share the [English README](https://github.com/tingwei1111/msa-hand-recorder/blob/main/README.en.md) or use the [bilingual announcement drafts](docs/sharing.md). Interface translation and usability suggestions are welcome; an English interface remains unimplemented.
+Share the [English README](https://github.com/tingwei1111/msa-hand-recorder/blob/main/README.en.md) or use the [bilingual announcement drafts](docs/sharing.md). Interface translation and usability suggestions are welcome. The interface and HTML/Markdown reports support all three languages.
 
-The narrow deck rows and hover-preview experience were inspired by [WaterStone](https://github.com/scriptLin-bjtu/WaterStone). This project implements its own GCG data projection and Chrome interface. Public screenshots and fixtures use synthetic data; official card art and full card-text datasets are not bundled.
+The minimal interface takes inspiration from [Ryo Lu’s journal](https://ryo.lu/journal/struggle-together), using its own layout and local system fonts. The narrow deck rows and hover-preview experience were inspired by [WaterStone](https://github.com/scriptLin-bjtu/WaterStone). This project implements its own GCG data projection and Chrome interface. Public screenshots and fixtures use synthetic data; official card art and full card-text datasets are not bundled.
 
 ## Development and validation
 
@@ -169,9 +178,9 @@ npm run preview
 
 Open `http://127.0.0.1:8768/demo/index.html` for live-panel, popup, review, and library previews. They do not read real records from your installed extension.
 
-Rust handles deck validation, frozen-version selection, hand classification, public-card/Token aggregation, and same-version statistics. JavaScript retains capture, storage, UI, and host-semantics compatibility. v0.10.0 preserves backup formats without a database migration and does not claim a speed improvement.
+Rust handles deck validation, frozen-version selection, hand classification, public-card/Token aggregation, and same-version statistics. JavaScript retains capture, storage, UI, and host-semantics compatibility. v0.11.0 keeps existing sessions and standard backups compatible without migrating old records. It adds an independent IndexedDB recovery journal and rescue JSON version 2. See the [v0.11 validation notes](docs/v0.11.md#english) for bounded synthetic batching/projection measurements; these are not live-match performance results.
 
-[Historical changelog (Traditional Chinese)](CHANGELOG.md) · [Releases / bilingual v0.10.0 notes](https://github.com/tingwei1111/msa-hand-recorder/releases/tag/v0.10.0)
+[Historical changelog (Traditional Chinese)](CHANGELOG.md) · [Releases / bilingual v0.11.0 notes](https://github.com/tingwei1111/msa-hand-recorder/releases/tag/v0.11.0)
 
 ## Open source and contributions
 
